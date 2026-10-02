@@ -27,8 +27,9 @@ class Settings(BaseSettings):
     RAZORPAY_WEBHOOK_SECRET: str = "whsec_placeholder"
     PAYMENT_CURRENCY: str = "INR"
 
-    # Indian banking / UPI / payment verification providers
-    PAYMENT_PROVIDER: str = "razorpay"
+    # Zero-cost local prototype uses the mock provider by default.
+    # Switch to a sandbox provider later if you want simulated external payments.
+    PAYMENT_PROVIDER: str = "mock"
 
     # GitHub (AI verification engine + webhook merge-event triggers)
     GITHUB_WEBHOOK_SECRET: str = "change-me"

@@ -7,9 +7,22 @@ This version is optimized for the Indian market and uses Razorpay as the payment
 ## Core purpose
 
 - Replace resume-heavy hiring with repository-based technical verification
-- Automate milestone funding and payouts in INR via Razorpay
+- Automate milestone funding and payouts in INR with a zero-cost mock provider by default
 - Reduce platform fees and manual admin work
 - Improve dispute speed with a blind peer jury system
+
+## Zero-cost / open-source stack
+
+This project is designed to run without paying for infrastructure while you are building and validating the MVP.
+
+Recommended no-cost setup:
+- Frontend: Vercel free tier
+- Backend: Render free tier or local FastAPI on Mac
+- Database: local PostgreSQL via Docker or Neon free tier
+- AI: Ollama running locally on Apple Silicon
+- Payments: mock provider by default; later switch to Razorpay test mode or another sandbox provider only after the product is validated
+
+Important: there is no truly open-source production payment processor that handles legally compliant real payouts in India without some vendor service, KYC, or account registration. The realistic zero-cost path is a local mock payment provider for development and free sandbox/test mode for experimentation.
 
 ## Local stack
 

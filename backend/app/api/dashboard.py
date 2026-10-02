@@ -1,6 +1,46 @@
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+class DemoPaymentRequest(BaseModel):
+    amount_minor: int
+    payment_type: str = "deposit"
+    note: str = "Demo escrow transaction"
+
+
+_MOCK_PAYMENTS = [
+    {
+        "id": "TXN-1001",
+        "type": "deposit",
+        "status": "success",
+        "amount_minor": 125000,
+        "currency": "INR",
+        "note": "Milestone 3 deposit",
+        "created_at": (datetime.utcnow() - timedelta(hours=2)).isoformat(timespec="seconds") + "Z",
+    },
+    {
+        "id": "TXN-1002",
+        "type": "release",
+        "status": "success",
+        "amount_minor": 98000,
+        "currency": "INR",
+        "note": "Approved GitHub merge payout",
+        "created_at": (datetime.utcnow() - timedelta(days=1)).isoformat(timespec="seconds") + "Z",
+    },
+    {
+        "id": "TXN-1003",
+        "type": "stake_lock",
+        "status": "success",
+        "amount_minor": 2500,
+        "currency": "INR",
+        "note": "Integrity stake locked",
+        "created_at": (datetime.utcnow() - timedelta(days=2)).isoformat(timespec="seconds") + "Z",
+    },
+]
 
 
 @router.get("/summary")
@@ -44,4 +84,25 @@ async def dashboard_summary():
             {"id": "PRJ-1109", "name": "Security Hardening", "client": "Northlane", "status": "Escrow Released", "progress": 100, "value": 28600},
             {"id": "PRJ-1172", "name": "Frontend Modernization", "client": "NovaWorks", "status": "Review", "progress": 58, "value": 31250},
         ],
+        "mock_payments": _MOCK_PAYMENTS,
     }
+
+
+@router.get("/mock-payments")
+async def mock_payments():
+    return {"transactions": _MOCK_PAYMENTS}
+
+
+@router.post("/demo-payment")
+async def create_demo_payment(payload: DemoPaymentRequest):
+    tx = {
+        "id": f"TXN-{len(_MOCK_PAYMENTS) + 1001}",
+        "type": payload.payment_type,
+        "status": "success",
+        "amount_minor": payload.amount_minor,
+        "currency": "INR",
+        "note": payload.note,
+        "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+    }
+    _MOCK_PAYMENTS.insert(0, tx)
+    return {"status": "success", "transaction": tx}
