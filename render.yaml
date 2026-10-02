@@ -23,14 +23,16 @@ services:
         sync: false
       - key: JWT_ALGORITHM
         value: HS256
-      - key: STRIPE_API_KEY
+      - key: RAZORPAY_KEY_ID
         sync: false
-      - key: STRIPE_WEBHOOK_SECRET
+      - key: RAZORPAY_KEY_SECRET
         sync: false
-      - key: PLAID_CLIENT_ID
+      - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
-      - key: PLAID_SECRET
-        sync: false
+      - key: PAYMENT_CURRENCY
+        value: INR
+      - key: PAYMENT_PROVIDER
+        value: razorpay
       - key: GITHUB_WEBHOOK_SECRET
         sync: false
       - key: GITHUB_APP_TOKEN

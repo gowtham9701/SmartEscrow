@@ -1,0 +1,153 @@
+SmartEscrow — Deployment, Git, and Pending Item Checklist
+=======================================================
+
+Project status:
+- Local prototype and documentation are in place.
+- Payment provider direction: Razorpay (INR / INR-settled fiat flow).
+- No crypto, token, or stablecoin references are used in this project package.
+
+1) Local archive created
+- Archive file: exports/SmartEscrow_Project_Archive.zip
+- This archive is a packaged copy of the project for sharing without the Git metadata.
+
+2) GitHub push steps
+A. Verify remotes:
+   git remote -v
+
+B. If you must point to your personal GitHub repo:
+   git remote set-url origin https://github.com/<username>/<repo>.git
+
+C. Push current branch:
+   git add .
+   git commit -m "Prepare SmartEscrow exports and deployment docs" \
+     -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+   git push -u origin HEAD:main
+
+D. If GitHub rejects push due to authentication:
+   - Refresh personal access token in GitHub
+   - Ensure the token has repo access (and workflow permissions if needed)
+   - Use a PAT in a credential manager or git credential helper
+   - Re-run the push command
+
+E. If remote history was rewritten or non-fast-forward:
+   git fetch origin
+   git rebase origin/main
+   git push -u origin HEAD:main
+
+3) Vercel deployment (frontend)
+A. Sign in to https://vercel.com
+B. Import the frontend project directory:
+   - Framework: Next.js
+   - Root directory: frontend
+   - Build command: npm install && npm run build
+   - Output directory: .next
+
+C. Add env vars in project settings:
+   NEXT_PUBLIC_API_BASE_URL=https://<your-render-backend>.onrender.com
+   NEXT_PUBLIC_APP_NAME=SmartEscrow
+
+D. Deploy and verify:
+   - Frontend URL example: https://smartescrow-xyz.vercel.app
+   - Check login page and dashboard render
+
+4) Render deployment (backend)
+A. Sign in to https://render.com
+B. Create a new Web Service
+C. Connect the repo or deploy from GitHub
+D. Use these settings:
+   - Root directory: .
+   - Build command: pip install -r backend/requirements.txt
+   - Start command: cd backend && gunicorn app.main:app --host 0.0.0.0 --port $PORT
+
+E. Add environment variables from backend/.env.production.example:
+   ENV=production
+   APP_NAME=SmartEscrow
+   API_V1_PREFIX=/api/v1
+   DATABASE_URL=postgresql+asyncpg://<user>:<password>@<host>:5432/<database>
+   JWT_SECRET_KEY=<generate long random secret>
+   JWT_ALGORITHM=HS256
+   ACCESS_TOKEN_EXPIRE_MINUTES=1440
+   RAZORPAY_KEY_ID=rzp_live_xxx or rzp_test_xxx
+   RAZORPAY_KEY_SECRET=xxx
+   RAZORPAY_WEBHOOK_SECRET=whsec_xxx
+   PAYMENT_CURRENCY=INR
+   PAYMENT_PROVIDER=razorpay
+   GITHUB_WEBHOOK_SECRET=<random string>
+   GITHUB_APP_TOKEN=ghp_xxx
+   OLLAMA_HOST=http://localhost:11434
+   OLLAMA_MODEL=deepseek-coder:6.7b
+   INTEGRITY_STAKE_INR_PAISA=2500
+
+F. After deployment, test health endpoint:
+   https://<render-service>.onrender.com/docs
+
+5) Neon PostgreSQL deployment
+A. Sign in to https://neon.tech
+B. Create a new project and database
+C. Copy the connection string
+D. Set it as DATABASE_URL in Render environment variables
+E. Example:
+   postgresql+asyncpg://<user>:<password>@<host>:5432/<database>?sslmode=require
+
+6) Netlify alternative (frontend only)
+A. Sign in to https://netlify.com
+B. Import repo and set build command:
+   cd frontend && npm install && npm run build
+C. Publish directory:
+   frontend/.next
+D. Add env var:
+   NEXT_PUBLIC_API_BASE_URL=https://<render-backend>
+
+7) How to get API keys and secrets
+A. Razorpay keys
+   1. Create or sign in at https://dashboard.razorpay.com/
+   2. Complete business verification
+   3. Go to Account & Settings -> API Keys
+   4. Copy Key ID and Key Secret
+   5. Use test keys for development and live keys for production
+   6. For webhooks, go to Settings -> Webhooks and add:
+      https://<render-service>/api/v1/webhooks/razorpay
+      and copy the webhook secret into RAZORPAY_WEBHOOK_SECRET
+
+B. GitHub App token
+   1. Visit https://github.com/settings/tokens
+   2. Generate a classic or fine-grained PAT
+   3. Grant repo access if needed
+   4. Store the token in GITHUB_APP_TOKEN
+
+C. GitHub webhook secret
+   1. In your GitHub repo settings, open Webhooks
+   2. Add new webhook to an endpoint such as Render service
+   3. Set a secret, verify it, and copy it into GITHUB_WEBHOOK_SECRET
+
+D. JWT secret
+   1. Generate a random long secret using a secure method:
+      python3 -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits + '!@#$%^&*') for _ in range(64)))"
+   2. Copy value into JWT_SECRET_KEY
+
+E. Ollama local model
+   1. Install Ollama for Mac: https://ollama.com/download/mac
+   2. Run: ollama pull deepseek-coder:6.7b
+   3. Confirm local server: http://localhost:11434
+
+8) Pending items to complete
+- Final provider-neutral cleanup in backend code and SQL model names (legacy Stripe naming may still be present in stale code paths)
+- Add production webhook handlers for Razorpay and GitHub merge events
+- Add frontend API integration and admin role flows
+- Add DB migration management for Neon production
+- Run smoke tests on Render + Vercel after real credentials are configured
+- Confirm production CORS and host allowlist
+- Validate webhook endpoint security and signature verification
+
+9) Recommended free-stack setup
+- Frontend: Vercel
+- Backend: Render
+- Database: Neon
+- AI: Ollama on local Mac
+- Payments: Razorpay India
+
+10) Important notes
+- Never commit real production secrets into the repository.
+- Use .env files locally and environment variables in live deployment portals.
+- Keep a separate staging environment before production.
+- Use test credentials first; switch to live keys only after complete UAT.

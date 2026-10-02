@@ -1,84 +1,92 @@
 # SmartEscrow
 
-**Algorithmic B2B Infrastructure for Tech Talent** — an MBA capstone entrepreneur
-project (LPU Online, Category C) that replaces resume-based hiring, percentage-commission
-marketplaces, and centralized dispute administration with programmatic, AI-verified,
-fiat-native USD infrastructure.
+SmartEscrow is a local-first platform for hiring and verifying software engineering talent using objective code signals, automated milestone escrow, and peer-led technical dispute resolution.
 
-> **Strict USD fiat-native. No cryptocurrency, tokens, or stablecoins anywhere in this
-> project.** All monetary values are integer USD cents, settled through Stripe Connect
-> and Plaid **sandbox** environments.
+This version is optimized for the Indian market and uses Razorpay as the payment gateway, with fiat settlement in INR instead of USD-only rails.
 
-Runs 100% locally and free of charge on Apple Silicon (Mac M5 Air) — zero cloud hosting
-dependency. The only inference compute required is local Ollama (DeepSeek-Coder 6.7B /
-Llama 3.1 8B).
+## Core purpose
 
-## Repository Layout
+- Replace resume-heavy hiring with repository-based technical verification
+- Automate milestone funding and payouts in INR via Razorpay
+- Reduce platform fees and manual admin work
+- Improve dispute speed with a blind peer jury system
 
-```
+## Local stack
+
+- Backend: FastAPI + PostgreSQL
+- Frontend: Next.js + Tailwind
+- AI: Ollama with DeepSeek-Coder or Llama models
+- Payment: Razorpay India
+- Hosting options: Vercel + Render + Neon
+
+## Repository layout
+
+```text
 SmartEscrow/
-├── backend/                  FastAPI application (Python)
+├── backend/
 │   ├── app/
-│   │   ├── ai_engine/        Local LLM + static-analysis code verification engine
-│   │   ├── api/              REST endpoints (assessments, milestones, GitHub webhooks)
-│   │   ├── core/             Config + async SQLAlchemy/PostgreSQL wiring
-│   │   ├── models/           ORM entities mirroring database/schema.sql
-│   │   └── services/         Escrow (Stripe) + Arbitration (jury) business logic
-│   ├── tests/                Pytest unit tests (deterministic, no network calls)
+│   ├── tests/
 │   ├── requirements.txt
+│   ├── Dockerfile
 │   └── .env.example
+├── frontend/
+│   ├── app/
+│   ├── components/
+│   └── package.json
 ├── database/
-│   └── schema.sql            Full PostgreSQL ledger schema
+│   └── schema.sql
 ├── docs/
-│   ├── Business_Architecture.md   Benchmarking, monetization, compliance matrix
+│   ├── Business_Architecture.md
 │   └── thesis/
-│       └── Chapter1_Introduction.md
-├── docker-compose.yml         Local PostgreSQL only (no cloud services)
-└── README.md
+├── docker-compose.yml
+├── render.yaml
+├── vercel.json
+├── README.md
+└── .gitignore
 ```
 
-## Quickstart (Local, Zero-Cost)
+## Quickstart
 
 ```bash
-# 1. Start local PostgreSQL (schema auto-applied on first boot)
+# Start PostgreSQL locally
+cd SmartEscrow
 docker compose up -d postgres
 
-# 2. Install Ollama + pull a local model (one-time, ~4-5GB download)
-brew install ollama
-ollama serve &
-ollama pull deepseek-coder:6.7b
-
-# 3. Backend
+# Start backend
 cd backend
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # fill in Stripe/Plaid/GitHub SANDBOX credentials
+cp .env.example .env
 uvicorn app.main:app --reload --port 8000
 
-# 4. Run tests
-pytest -q
+# Start frontend
+cd ../frontend
+npm install
+npm run dev
 ```
 
-Visit `http://localhost:8000/docs` for the interactive OpenAPI (Swagger) console.
+## Required env variables
 
-## Core Pillars
+See `backend/.env.example` and `frontend/.env.example` for setup values.
 
-1. **AI Technical Verification Engine** — [verification_engine.py](backend/app/ai_engine/verification_engine.py)
-2. **Automated USD Escrow (Stripe Connect sandbox)** — [escrow_service.py](backend/app/services/escrow_service.py)
-3. **GitHub Merge-Event Webhook → Auto Escrow Release** — [webhooks.py](backend/app/api/webhooks.py)
-4. **Peer-Led Blind Jury Arbitration** — [arbitration_service.py](backend/app/services/arbitration_service.py)
-5. **PostgreSQL Ledger Schema** — [schema.sql](database/schema.sql)
-6. **Business Architecture & Financial Forecast** — [Business_Architecture.md](docs/Business_Architecture.md)
-7. **MBA Thesis Report** — [docs/thesis/](docs/thesis/)
+The backend uses:
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `RAZORPAY_WEBHOOK_SECRET`
+- `PAYMENT_CURRENCY=INR`
+- `JWT_SECRET_KEY`
+- `DATABASE_URL`
+- `GITHUB_WEBHOOK_SECRET`
+- `GITHUB_APP_TOKEN`
 
-## Compliance Posture
+## Deployment
 
-- No crypto/token/stablecoin code paths exist anywhere in this repository.
-- Tax documentation (W-8BEN / W-9), KYC gating, and AML controls are modeled in
-  `database/schema.sql` (`tax_documents`, `kyc_status`).
-- GDPR/CCPA: PII minimization (last-4 tax ID digits only), encrypted tokens at the
-  application layer.
+- Frontend: Vercel
+- Backend: Render
+- Database: Neon Postgres
 
-See [docs/Business_Architecture.md](docs/Business_Architecture.md) for the full
-compliance matrix, competitive benchmarking, and 5-year financial forecast.
+## Business model
+
+SmartEscrow is designed around SaaS subscriptions, premium vetting reports, and low transaction friction instead of traditional percentage-heavy marketplace commissions.
 

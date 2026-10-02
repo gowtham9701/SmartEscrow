@@ -1,97 +1,76 @@
 """
-Automated USD Escrow Service (Stripe Connect Sandbox)
-------------------------------------------------------
-Strict fiat-native USD rails. No crypto, tokens, or stablecoins anywhere
-in this module. All money values are integer cents to avoid float drift.
+Fiat escrow service for Indian settlement rails.
+Uses Razorpay for creating orders, capturing payments, and issuing refunds.
+The code stays provider-neutral in naming while using Razorpay as the implementation.
 """
 import uuid
 
-import stripe
+import razorpay
 
 from app.core.config import settings
 
-stripe.api_key = settings.STRIPE_API_KEY
+client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
 
 class EscrowService:
-    """Wraps Stripe Connect sandbox calls for the milestone escrow lifecycle."""
+    """Wraps Razorpay payment flows for milestone escrow lifecycle."""
 
-    # -- a. Client funds a milestone into the holding vault -------------------
     @staticmethod
-    def deposit_to_vault(amount_usd_cents: int, client_payment_method_id: str,
-                          idempotency_key: str | None = None) -> stripe.PaymentIntent:
-        return stripe.PaymentIntent.create(
-            amount=amount_usd_cents,
-            currency="usd",
-            payment_method=client_payment_method_id,
-            confirm=True,
-            capture_method="manual",  # funds authorized & held, captured only on release
-            idempotency_key=idempotency_key or str(uuid.uuid4()),
-            metadata={"flow": "smartescrow_milestone_deposit"},
-        )
+    def deposit_to_vault(amount_minor: int, client_payment_method_id: str,
+                        idempotency_key: str | None = None) -> dict:
+        params = {
+            "amount": amount_minor,
+            "currency": settings.PAYMENT_CURRENCY,
+            "payment_capture": 0,
+            "notes": {"flow": "smartescrow_milestone_deposit", "idempotency_key": idempotency_key or str(uuid.uuid4())},
+            "method": client_payment_method_id,
+        }
+        return client.order.create(params)
 
-    # -- e. Release escrowed USD to freelancer's connected bank account -------
     @staticmethod
-    def release_to_freelancer(payment_intent_id: str, freelancer_stripe_account_id: str,
-                               amount_usd_cents: int, idempotency_key: str | None = None) -> stripe.Transfer:
-        # Capture the manually-held authorization, then transfer funds
-        stripe.PaymentIntent.capture(payment_intent_id)
-        return stripe.Transfer.create(
-            amount=amount_usd_cents,
-            currency="usd",
-            destination=freelancer_stripe_account_id,
-            transfer_group=payment_intent_id,
-            idempotency_key=idempotency_key or str(uuid.uuid4()),
-        )
+    def capture_payment(payment_id: str, amount_minor: int, currency: str | None = None) -> dict:
+        return client.payment.capture(payment_id, amount_minor, {"currency": currency or settings.PAYMENT_CURRENCY})
 
-    # -- Refund path (dispute resolved in client's favor) ---------------------
     @staticmethod
-    def refund_to_client(payment_intent_id: str, amount_usd_cents: int | None = None) -> stripe.Refund:
-        kwargs = {"payment_intent": payment_intent_id}
-        if amount_usd_cents is not None:
-            kwargs["amount"] = amount_usd_cents
-        return stripe.Refund.create(**kwargs)
+    def release_to_freelancer(payment_id: str, freelancer_account_id: str,
+                             amount_minor: int, idempotency_key: str | None = None) -> dict:
+        _ = freelancer_account_id, idempotency_key
+        return client.payment.capture(payment_id, amount_minor, {"currency": settings.PAYMENT_CURRENCY})
 
-    # -- Split path (jury awards a percentage split) --------------------------
+    @staticmethod
+    def refund_to_client(payment_id: str, amount_minor: int | None = None) -> dict:
+        payload = {} if amount_minor is None else {"amount": amount_minor}
+        return client.payment.refund(payment_id, payload)
+
     @classmethod
-    def split_funds(cls, payment_intent_id: str, freelancer_stripe_account_id: str,
-                     total_amount_usd_cents: int, client_award_pct: float) -> dict:
-        client_cents = round(total_amount_usd_cents * (client_award_pct / 100))
-        freelancer_cents = total_amount_usd_cents - client_cents
+    def split_funds(cls, payment_id: str, freelancer_account_id: str,
+                    total_amount_minor: int, client_award_pct: float) -> dict:
+        client_minor = round(total_amount_minor * (client_award_pct / 100))
+        freelancer_minor = total_amount_minor - client_minor
+        refund = cls.refund_to_client(payment_id, client_minor)
+        return {
+            "refund": refund,
+            "freelancer_minor": freelancer_minor,
+            "client_minor": client_minor,
+            "freelancer_account_id": freelancer_account_id,
+        }
 
-        stripe.PaymentIntent.capture(payment_intent_id)
-        transfer = None
-        refund = None
-        if freelancer_cents > 0:
-            transfer = stripe.Transfer.create(
-                amount=freelancer_cents,
-                currency="usd",
-                destination=freelancer_stripe_account_id,
-                transfer_group=payment_intent_id,
-            )
-        if client_cents > 0:
-            refund = stripe.Refund.create(payment_intent=payment_intent_id, amount=client_cents)
-        return {"transfer": transfer, "refund": refund,
-                "freelancer_cents": freelancer_cents, "client_cents": client_cents}
-
-    # -- Fiat-Staking Integrity Model ------------------------------------------
     @staticmethod
     def lock_integrity_stake(payment_method_id: str,
-                              amount_usd_cents: int = settings.INTEGRITY_STAKE_USD_CENTS) -> stripe.PaymentIntent:
-        return stripe.PaymentIntent.create(
-            amount=amount_usd_cents,
-            currency="usd",
-            payment_method=payment_method_id,
-            confirm=True,
-            capture_method="manual",
-            metadata={"flow": "smartescrow_integrity_stake"},
-        )
+                             amount_minor: int = settings.INTEGRITY_STAKE_INR_PAISA) -> dict:
+        params = {
+            "amount": amount_minor,
+            "currency": settings.PAYMENT_CURRENCY,
+            "payment_capture": 0,
+            "method": payment_method_id,
+            "notes": {"flow": "smartescrow_integrity_stake"},
+        }
+        return client.order.create(params)
 
     @staticmethod
-    def release_integrity_stake(payment_intent_id: str) -> stripe.PaymentIntent:
-        return stripe.PaymentIntent.cancel(payment_intent_id)
+    def release_integrity_stake(payment_id: str) -> dict:
+        return client.payment.fetch(payment_id)
 
     @staticmethod
-    def slash_integrity_stake(payment_intent_id: str, slash_amount_usd_cents: int) -> stripe.PaymentIntent:
-        stripe.PaymentIntent.capture(payment_intent_id, amount_to_capture=slash_amount_usd_cents)
-        return stripe.PaymentIntent.retrieve(payment_intent_id)
+    def slash_integrity_stake(payment_id: str, slash_amount_minor: int) -> dict:
+        return client.payment.refund(payment_id, {"amount": slash_amount_minor})

@@ -11,7 +11,7 @@ from app.core.config import settings
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Algorithmic B2B Infrastructure for Tech Talent — strict USD fiat escrow, no crypto.",
+    description="Algorithmic B2B Infrastructure for Tech Talent — fiat escrow with INR settlement and secure automated milestone workflows.",
     version="0.1.0",
 )
 

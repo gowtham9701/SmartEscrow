@@ -18,9 +18,9 @@ high-velocity nature of modern software delivery.
 **SmartEscrow** is proposed as an entrepreneurial venture that re-architects the B2B
 tech-talent marketplace around three automation primitives: (1) objective, AI-driven
 technical verification sourced directly from public code repositories rather than
-self-reported resumes; (2) a **strict USD fiat-native** automated escrow infrastructure
-that eliminates cryptocurrency, tokens, or stablecoins entirely to preserve immediate
-corporate banking and regulatory compliance; and (3) a peer-led, blind arbitration
+self-reported resumes; (2) a **fiat-native automated escrow infrastructure** for
+USD and INR payments that preserves banking and regulatory compliance without relying
+on tokens or speculative digital assets; and (3) a peer-led, blind arbitration
 matrix that replaces centralized, slow dispute administration with distributed technical
 judgment from the platform's own senior engineering base.
 
@@ -46,13 +46,13 @@ feasible for the first time:
    Llama 3.1) now run efficiently on consumer Apple Silicon hardware via orchestration
    layers such as Ollama, enabling objective code-quality reasoning without recurring
    cloud inference cost.
-2. **Banking-as-a-Service (BaaS) and Open Banking APIs** (Stripe Connect, Plaid, under
-   the PSD2 regulatory standard) now expose programmatic escrow, payout, and
-   bank-verification primitives directly to application developers — without requiring
-   a banking license or cryptocurrency rails.
+   2. **Banking-as-a-Service (BaaS) and Open Banking APIs** now expose programmatic
+   escrow, payout, and bank-verification primitives directly to application developers
+   — without requiring a banking license or speculative digital settlement rails.
 
-SmartEscrow is positioned at the intersection of these two shifts: a fiat-native,
-AI-verified, programmatically-arbitrated B2B marketplace.
+   SmartEscrow is positioned at the intersection of these two shifts: a fiat-native,
+   AI-verified, programmatically-arbitrated B2B marketplace for software delivery and
+   secure contractor settlement.
 
 ## 1.3 Problem Statement
 
@@ -104,8 +104,8 @@ reduction in the transaction costs inherent to the B2B tech-talent exchange.
 2. To design and implement (in simulation/sandbox form) an AI Technical Verification
    Engine capable of producing an objective, repository-derived talent grade using
    locally-hosted open-source LLMs.
-3. To design a strict USD fiat-native automated escrow infrastructure using Stripe
-   Connect and Plaid sandbox environments, triggered by verifiable GitHub merge events.
+   3. To design a fiat-native automated escrow infrastructure for USD and INR flows,
+   using provider sandbox environments and verifiable GitHub merge events.
 4. To design a peer-led, blind, randomized, micro-incentivized jury arbitration
    mechanism for resolving milestone disputes without centralized human administration.
 5. To produce a full business architecture — competitive benchmarking, alternative
@@ -119,7 +119,7 @@ This capstone project is scoped as an **Entrepreneur Project (Category C)** unde
 LPU Online MBA Capstone Guidelines. The technical deliverable is a locally runnable,
 zero-cloud-cost simulation of the SmartEscrow platform — including a PostgreSQL
 relational ledger, a FastAPI backend, a local Ollama-orchestrated AI verification
-engine, and Stripe/Plaid **sandbox** integrations — built and executed entirely on
+engine, and secure payment sandbox integrations — built and executed entirely on
 Apple Silicon (Mac M5 Air) hardware. Production-grade banking licensing, live payment
 processing, and regulatory filing are explicitly out of scope; this project instead
 produces an investor-ready blueprint and functioning technical proof-of-concept.
@@ -129,10 +129,9 @@ produces an investor-ready blueprint and functioning technical proof-of-concept.
 This study contributes to the academic and practitioner literature at the intersection
 of platform economics, open banking financial architecture, and applied artificial
 intelligence in human capital verification. It demonstrates a replicable model for
-how locally-executed open-source AI and open banking APIs can jointly displace
-rent-seeking intermediation in B2B service marketplaces, while remaining fully
-compliant with USD banking regulation by deliberately excluding cryptocurrency and
-token-based settlement rails.
+how locally-executed open-source AI and secure payment APIs can jointly displace
+rent-seeking intermediation in B2B service marketplaces while remaining aligned with
+fiat settlement practices and financial compliance requirements.
 
 ## 1.8 Organization of the Report
 

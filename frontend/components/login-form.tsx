@@ -47,7 +47,7 @@ export function LoginForm() {
               Platform-grade escrow, AI verification, and peer dispute resolution for global software delivery.
             </p>
             <div className="mt-10 grid gap-4 text-sm text-slate-200">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">USD escrow release after verified GitHub merge events.</div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Fiat payout release after verified GitHub merge events.</div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Local LLM code-quality grading with objective talent scoring.</div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">Blind peer jury dispute resolution across engineering experts.</div>
             </div>

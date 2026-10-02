@@ -21,14 +21,14 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
-    # Stripe Connect Sandbox (USD fiat escrow rails — NOT crypto)
-    STRIPE_API_KEY: str = "sk_test_placeholder"
-    STRIPE_WEBHOOK_SECRET: str = "whsec_placeholder"
+    # Razorpay India payment gateway (fiat settlement in INR)
+    RAZORPAY_KEY_ID: str = "rzp_test_placeholder"
+    RAZORPAY_KEY_SECRET: str = "placeholder_secret"
+    RAZORPAY_WEBHOOK_SECRET: str = "whsec_placeholder"
+    PAYMENT_CURRENCY: str = "INR"
 
-    # Plaid Sandbox (bank account linking / ACH verification)
-    PLAID_CLIENT_ID: str = "plaid_placeholder"
-    PLAID_SECRET: str = "plaid_placeholder"
-    PLAID_ENV: str = "sandbox"
+    # Indian banking / UPI / payment verification providers
+    PAYMENT_PROVIDER: str = "razorpay"
 
     # GitHub (AI verification engine + webhook merge-event triggers)
     GITHUB_WEBHOOK_SECRET: str = "change-me"
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "deepseek-coder:6.7b"
 
     # Fiat-Staking Integrity Model
-    INTEGRITY_STAKE_USD_CENTS: int = 2500  # $25.00 refundable stake
+    INTEGRITY_STAKE_INR_PAISA: int = 2500  # ₹25.00 refundable stake (2,500 paise)
 
 
 @lru_cache

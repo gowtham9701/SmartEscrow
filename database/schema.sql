@@ -1,12 +1,11 @@
 -- =====================================================================
 -- SmartEscrow :: PostgreSQL Core Ledger Schema
 -- Algorithmic B2B Infrastructure for Tech Talent
--- Strict USD Fiat-native. No crypto/tokens/stablecoins.
+-- Fiat-native INR settlement backbone optimized for local AI-first hiring operations.
 -- Target: PostgreSQL 15+, local Docker on Apple Silicon (Mac M5 Air)
 -- =====================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ---------------------------------------------------------------------
 -- ENUM TYPES
@@ -34,10 +33,10 @@ CREATE TABLE users (
     role                user_role NOT NULL DEFAULT 'freelancer',
     country_code        CHAR(2) NOT NULL,
     kyc_status          kyc_status NOT NULL DEFAULT 'pending',
-    stripe_account_id   VARCHAR(255),           -- Stripe Connect account (payout rail)
-    plaid_item_id       VARCHAR(255),            -- Plaid linked bank item (for clients funding escrow)
+    payment_account_id   VARCHAR(255),           -- payout account reference for the local fiat gateway
+    plaid_item_id       VARCHAR(255),            -- bank or payout provider linked item reference
     github_username     VARCHAR(255),
-    github_access_token TEXT,                    -- encrypted at application layer (pgcrypto / KMS)
+    github_access_token TEXT,                    -- encrypted at application layer (KMS)
     reputation_score     NUMERIC(5,2) DEFAULT 0,  -- 0-100 composite trust score
     is_active           BOOLEAN NOT NULL DEFAULT TRUE,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -59,12 +58,12 @@ CREATE TABLE tax_documents (
     expires_at      TIMESTAMPTZ
 );
 
--- Fiat-Staking Integrity Model: refundable USD deposit required to unlock bidding/negotiation
+-- Fiat-staking integrity model: refundable deposit required to unlock bidding and negotiation
 CREATE TABLE integrity_stakes (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    amount_usd_cents    BIGINT NOT NULL CHECK (amount_usd_cents >= 0),
-    stripe_payment_intent_id VARCHAR(255),
+    amount_minor        BIGINT NOT NULL CHECK (amount_minor >= 0),
+    payment_reference_id VARCHAR(255),
     locked              BOOLEAN NOT NULL DEFAULT TRUE,
     slashed_amount_cents BIGINT NOT NULL DEFAULT 0,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -106,7 +105,7 @@ CREATE TABLE projects (
     description     TEXT,
     github_repo_full_name VARCHAR(255) NOT NULL,
     target_branch   VARCHAR(100) NOT NULL DEFAULT 'main',
-    total_budget_usd_cents BIGINT NOT NULL CHECK (total_budget_usd_cents >= 0),
+    total_budget_minor BIGINT NOT NULL CHECK (total_budget_minor >= 0),
     status          VARCHAR(50) NOT NULL DEFAULT 'active',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -118,7 +117,7 @@ CREATE TABLE milestones (
     sequence_number      INTEGER NOT NULL,
     title                VARCHAR(255) NOT NULL,
     description          TEXT,
-    amount_usd_cents     BIGINT NOT NULL CHECK (amount_usd_cents >= 0),
+    amount_minor         BIGINT NOT NULL CHECK (amount_minor >= 0),
     status               milestone_status NOT NULL DEFAULT 'draft',
     required_pr_merge    BOOLEAN NOT NULL DEFAULT TRUE,
     github_pr_number     INTEGER,
@@ -136,18 +135,18 @@ CREATE INDEX idx_milestones_project ON milestones(project_id);
 CREATE INDEX idx_milestones_status ON milestones(status);
 
 -- ---------------------------------------------------------------------
--- AUTOMATED USD ESCROW LEDGER (Stripe Connect + Plaid Sandbox)
+-- AUTOMATED FIAT ESCROW LEDGER
 -- ---------------------------------------------------------------------
 CREATE TABLE escrow_transactions (
     id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     milestone_id            UUID NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
     tx_type                 escrow_tx_type NOT NULL,
     status                  escrow_tx_status NOT NULL DEFAULT 'pending',
-    amount_usd_cents        BIGINT NOT NULL CHECK (amount_usd_cents >= 0),
-    stripe_payment_intent_id VARCHAR(255),
-    stripe_transfer_id       VARCHAR(255),
-    stripe_charge_id         VARCHAR(255),
-    plaid_transaction_id     VARCHAR(255),
+    amount_minor            BIGINT NOT NULL CHECK (amount_minor >= 0),
+    payment_reference_id   VARCHAR(255),
+    payout_reference_id    VARCHAR(255),
+    gateway_charge_id      VARCHAR(255),
+    payment_provider_ref   VARCHAR(255),
     initiated_by             UUID REFERENCES users(id),
     idempotency_key          VARCHAR(255) UNIQUE,
     failure_reason            TEXT,
@@ -158,10 +157,10 @@ CREATE TABLE escrow_transactions (
 CREATE INDEX idx_escrow_tx_milestone ON escrow_transactions(milestone_id);
 CREATE INDEX idx_escrow_tx_status ON escrow_transactions(status);
 
--- Immutable webhook event log (GitHub + Stripe) driving the automated flow
+-- Immutable webhook event log driving the automated flow
 CREATE TABLE webhook_events (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    source          VARCHAR(50) NOT NULL,        -- 'github' | 'stripe' | 'plaid'
+    source          VARCHAR(50) NOT NULL,        -- 'github' | 'payment_provider' | 'banking_api'
     event_type      VARCHAR(100) NOT NULL,
     external_event_id VARCHAR(255),
     payload         JSONB NOT NULL,
