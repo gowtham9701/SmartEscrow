@@ -1,0 +1,29 @@
+# =====================================================================
+# SmartEscrow — 100% local, zero-cost development stack (Mac Apple Silicon)
+# No cloud hosting dependency. Only PostgreSQL runs in Docker;
+# Ollama runs natively on the host for GPU/Metal acceleration.
+# =====================================================================
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smartescrow_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: smartescrow
+      POSTGRES_PASSWORD: smartescrow
+      POSTGRES_DB: smartescrow
+    ports:
+      - "5432:5432"
+    volumes:
+      - smartescrow_pgdata:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartescrow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  smartescrow_pgdata:
