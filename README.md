@@ -81,3 +81,4 @@ Visit `http://localhost:8000/docs` for the interactive OpenAPI (Swagger) console
 
 See [docs/Business_Architecture.md](docs/Business_Architecture.md) for the full
 compliance matrix, competitive benchmarking, and 5-year financial forecast.
+
