@@ -96,7 +96,7 @@ export default function LoginPage() {
           <div className="mt-6 flex items-center justify-between text-xs text-ink/60">
             <span>
               New here?{' '}
-              <Link href="/register" className="font-semibold text-navy hover:underline">
+              <Link href="/register" className="font-semibold text-navy dark:text-sky-300 hover:underline">
                 Create account
               </Link>
             </span>

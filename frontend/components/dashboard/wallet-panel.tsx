@@ -136,7 +136,7 @@ export function WalletPanel() {
         <div className="mt-10">
           <div className="flex items-center justify-between">
             <div className="mono-label text-accent">Payment Methods</div>
-            <button onClick={() => setGatewayOpen(true)} className="font-mono text-xs uppercase tracking-wide text-navy hover:underline">
+            <button onClick={() => setGatewayOpen(true)} className="font-mono text-xs uppercase tracking-wide text-navy dark:text-sky-300 hover:underline">
               + Add card
             </button>
           </div>

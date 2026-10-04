@@ -87,7 +87,7 @@ export function DashboardClient() {
               key={t}
               onClick={() => setTab(t)}
               className={`whitespace-nowrap border-b-2 px-4 py-3 font-mono text-xs uppercase tracking-wide transition ${
-                tab === t ? 'border-navy text-navy' : 'border-transparent text-ink/50 hover:text-ink'
+                tab === t ? 'border-navy dark:border-sky-400 text-navy dark:text-sky-300' : 'border-transparent text-ink/50 hover:text-ink'
               }`}
             >
               {t}
@@ -252,7 +252,7 @@ function Overview({
                 <div className="mono-label text-accent">{a.tag}</div>
                 <div className="mt-3 font-display text-lg font-bold leading-tight tracking-tight">{a.title}</div>
                 <p className="mt-2 flex-1 text-sm text-ink/60">{a.body}</p>
-                <span className="mt-4 inline-flex items-center gap-1 font-mono text-xs uppercase tracking-wide text-navy">
+                <span className="mt-4 inline-flex items-center gap-1 font-mono text-xs uppercase tracking-wide text-navy dark:text-sky-300">
                   Go <span>→</span>
                 </span>
               </>
@@ -339,7 +339,7 @@ function ApplicationsPanel({ apps }: { apps: Application[] }) {
       {apps.map((a) => (
         <div key={a.id} className="card flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="min-w-0">
-            <Link href={`/jobs/${a.job_id}`} className="font-display text-lg font-bold tracking-tight hover:text-navy">
+            <Link href={`/jobs/${a.job_id}`} className="font-display text-lg font-bold tracking-tight hover:text-navy dark:hover:text-sky-300">
               {a.job?.title || 'Role'}
             </Link>
             <div className="font-mono text-xs text-ink/50">
@@ -403,7 +403,7 @@ function ApplicantsPanel({ apps, busy, onStatus }: { apps: Application[]; busy: 
             <div className="flex items-center gap-4">
               <Avatar name={a.contributor?.full_name || '?'} hue={a.contributor?.avatar_hue} />
               <div>
-                <Link href={`/talent/${a.contributor_id}`} className="font-display text-lg font-bold tracking-tight hover:text-navy">
+                <Link href={`/talent/${a.contributor_id}`} className="font-display text-lg font-bold tracking-tight hover:text-navy dark:hover:text-sky-300">
                   {a.contributor?.full_name}
                 </Link>
                 <div className="font-mono text-xs text-ink/50">{a.contributor?.title}</div>

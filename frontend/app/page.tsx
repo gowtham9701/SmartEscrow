@@ -119,7 +119,7 @@ export default function HomePage() {
                 {s.title}
               </h3>
               <p className="mt-4 flex-1 text-sm leading-relaxed text-ink/70">{s.body}</p>
-              <span className="mt-6 inline-flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-navy">
+              <span className="mt-6 inline-flex items-center gap-2 font-mono text-xs uppercase tracking-wide text-navy dark:text-sky-300">
                 {s.cta}
                 <span className="transition group-hover:translate-x-1">→</span>
               </span>

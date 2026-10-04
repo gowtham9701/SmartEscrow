@@ -49,7 +49,7 @@ export default function HowItWorksPage() {
               <div className="font-display text-6xl font-bold text-ink/15">{s.n}</div>
               <div>
                 <div className="font-display text-2xl font-bold tracking-tight">{s.title}</div>
-                <div className="mono-label mt-4 text-navy">For Clients</div>
+                <div className="mono-label mt-4 text-navy dark:text-sky-300">For Clients</div>
                 <p className="mt-1 text-sm text-ink/70">{s.client}</p>
               </div>
               <div className="md:pt-16">

@@ -51,7 +51,7 @@ export default function TalentProfilePage() {
       <SiteHeader />
 
       <section className="container-x pt-10">
-        <Link href="/talent" className="font-mono text-xs uppercase tracking-wide text-ink/50 hover:text-navy">
+        <Link href="/talent" className="font-mono text-xs uppercase tracking-wide text-ink/50 hover:text-navy dark:hover:text-sky-300">
           ← All talent
         </Link>
       </section>
@@ -91,7 +91,7 @@ export default function TalentProfilePage() {
                       <div className="font-display text-lg font-bold tracking-tight">{e.role}</div>
                       <div className="font-mono text-xs text-ink/50">{e.period}</div>
                     </div>
-                    <div className="font-mono text-xs text-navy">{e.company}</div>
+                    <div className="font-mono text-xs text-navy dark:text-sky-300">{e.company}</div>
                     <p className="mt-2 text-sm text-ink/70">{e.summary}</p>
                   </div>
                 ))}
@@ -162,7 +162,7 @@ export default function TalentProfilePage() {
                 href={`https://github.com/${t.github_username}`}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 block font-mono text-sm text-navy hover:underline"
+                className="mt-2 block font-mono text-sm text-navy dark:text-sky-300 hover:underline"
               >
                 github.com/{t.github_username}
               </a>

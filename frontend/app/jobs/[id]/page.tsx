@@ -82,7 +82,7 @@ export default function JobDetailPage() {
       <SiteHeader />
 
       <section className="container-x pt-10">
-        <Link href="/jobs" className="font-mono text-xs uppercase tracking-wide text-ink/50 hover:text-navy">
+        <Link href="/jobs" className="font-mono text-xs uppercase tracking-wide text-ink/50 hover:text-navy dark:hover:text-sky-300">
           ← All roles
         </Link>
         <div className="mt-6 flex flex-wrap items-start justify-between gap-4">

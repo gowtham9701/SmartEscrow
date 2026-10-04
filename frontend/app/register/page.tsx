@@ -186,7 +186,7 @@ function RegisterForm() {
 
             <div className="mt-6 text-xs text-ink/60">
               Already have an account?{' '}
-              <Link href="/login" className="font-semibold text-navy hover:underline">Sign in</Link>
+              <Link href="/login" className="font-semibold text-navy dark:text-sky-300 hover:underline">Sign in</Link>
             </div>
           </>
         ) : (
@@ -223,8 +223,8 @@ function RegisterForm() {
             </button>
 
             <div className="flex items-center justify-between text-xs text-ink/60">
-              <button type="button" onClick={() => setStep('details')} className="hover:text-navy">← Edit details</button>
-              <button type="button" onClick={resend} className="font-semibold text-navy hover:underline">Resend code</button>
+              <button type="button" onClick={() => setStep('details')} className="hover:text-navy dark:hover:text-sky-300">← Edit details</button>
+              <button type="button" onClick={resend} className="font-semibold text-navy dark:text-sky-300 hover:underline">Resend code</button>
             </div>
           </form>
         )}

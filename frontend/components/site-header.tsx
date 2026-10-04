@@ -128,7 +128,7 @@ export function SiteHeader() {
             </>
           ) : (
             <>
-              <Link href="/login" className="font-mono text-[12px] uppercase tracking-[0.12em] text-ink/70 hover:text-navy">Login</Link>
+              <Link href="/login" className="font-mono text-[12px] uppercase tracking-[0.12em] text-ink/70 hover:text-navy dark:hover:text-sky-300">Login</Link>
               <Link href="/register" className="btn-navy py-2.5">Get Started</Link>
             </>
           )}
@@ -163,7 +163,7 @@ export function SiteHeader() {
                     </button>
                   ))}
                 </div>
-                <Link href="/dashboard" onClick={() => setOpen(false)} className="font-mono text-xs uppercase tracking-[0.12em] text-navy">Dashboard</Link>
+                <Link href="/dashboard" onClick={() => setOpen(false)} className="font-mono text-xs uppercase tracking-[0.12em] text-navy dark:text-sky-300">Dashboard</Link>
                 <button onClick={logout} className="btn-outline mt-2 w-full">Log out</button>
               </>
             ) : (
