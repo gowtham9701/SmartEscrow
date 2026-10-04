@@ -58,6 +58,10 @@ def _send_via_resend(to_address: str, subject: str, body: str) -> None:
         headers={
             "Authorization": f"Bearer {settings.RESEND_API_KEY}",
             "Content-Type": "application/json",
+            "Accept": "application/json",
+            # A browser-like UA avoids Cloudflare bot blocks on some networks.
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
         },
         method="POST",
     )

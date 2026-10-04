@@ -128,8 +128,20 @@ still collected for contact, but no SMS code is sent (no cost).
 Some networks/hosts block outbound SMTP (ports 587/465). In that case use
 **Resend**, which sends over HTTPS (443) and works everywhere — free 3,000/mo:
 
-1. Sign up at <https://resend.com> and create an API key.
-2. Set `RESEND_API_KEY=re_your_key` (and `SMTP_FROM=SmartEscrow <onboarding@resend.dev>`
-   or your verified domain). No SMTP vars needed.
-3. The sender in [`notifications.py`](../backend/app/marketplace/notifications.py)
-   automatically prefers Resend when `RESEND_API_KEY` is set.
+1. Sign up at <https://resend.com> and create an API key (API Keys → Create).
+2. Set `RESEND_API_KEY=re_your_key`. The sender in
+   [`notifications.py`](../backend/app/marketplace/notifications.py) automatically
+   prefers Resend when the key is set (and sends a browser User-Agent so
+   Cloudflare doesn't block datacenter IPs).
+3. **From address:**
+   - Quick test: `SMTP_FROM=SmartEscrow <onboarding@resend.dev>` — Resend's shared
+     sender. In test mode it only delivers to **your own Resend signup email**.
+   - **Production (email any user):** verify a domain in Resend (Domains → add
+     domain → add the DNS records), then set `SMTP_FROM=SmartEscrow <no-reply@yourdomain.com>`.
+     Until a domain is verified, Resend rejects sending to other people's addresses.
+
+### Does it work on the deployed version?
+Yes. Set `RESEND_API_KEY` and `SMTP_FROM` in your host's env (e.g. Render →
+Environment). To send OTPs to **all** users in production you must verify a
+sending domain in Resend; with the `onboarding@resend.dev` sender you can only
+email your own account address (fine for demos).
