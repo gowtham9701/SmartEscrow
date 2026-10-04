@@ -3,11 +3,16 @@ SmartEscrow FastAPI application entrypoint.
 Run locally (zero cloud dependency):
     uvicorn app.main:app --reload --port 8000
 """
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api import assessments, auth, dashboard, marketplace, milestones, webhooks
 from app.core.config import settings
+
+logger = logging.getLogger("smartescrow")
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -22,6 +27,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Safety net: log the full traceback and return a clean JSON error
+    instead of leaking a bare 'Internal Server Error' to the client."""
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Something went wrong on our end. Please try again."},
+    )
 
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(assessments.router, prefix=settings.API_V1_PREFIX)
