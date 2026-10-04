@@ -29,10 +29,16 @@ This guide explains how to deploy the project using free-tier hosting approaches
 3. Connect the GitHub repo
 4. Use:
    - Build command: `pip install -r backend/requirements.txt`
-   - Start command: `cd backend && gunicorn app.main:app --host 0.0.0.0 --port $PORT`
-5. Add environment variables from `backend/.env.production.example`
+   - Start command: `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+5. Add environment variables (see the list below). At minimum set `DATABASE_URL`
+   (your Neon connection string) and `RESEND_API_KEY` for real OTP emails.
 6. Keep `PAYMENT_PROVIDER=mock` for the zero-cost prototype
-7. Deploy
+7. Deploy. On first boot the app creates the two tables (`users`, `operations`)
+   in your database and seeds demo data automatically.
+
+> Tip: the repo includes `render.yaml` — on Render you can "New + → Blueprint"
+> and point it at the repo to apply all of this automatically (you still paste
+> the secret values like `DATABASE_URL` and `RESEND_API_KEY`).
 
 ## Database options
 
@@ -42,16 +48,18 @@ This guide explains how to deploy the project using free-tier hosting approaches
 docker compose up -d postgres
 ```
 
-### Option B: Neon free tier
+### Option B: Neon free tier (recommended)
 
 1. Create a database at https://neon.tech
-2. Copy the Postgres connection string
-3. Put it into `DATABASE_URL`
+2. Neon Console → **Connect** → copy the connection string
+3. Put it into `DATABASE_URL` using the `+asyncpg` form:
 
-Example:
 ```env
-DATABASE_URL=postgresql+asyncpg://user:password@host:5432/dbname?sslmode=require
+DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@ep-xxx-pooler.REGION.aws.neon.tech/neondb?sslmode=require&channel_binding=require
 ```
+
+The app stores everything in just two tables (`users`, `operations`) and
+creates them automatically on first start. See `docs/NEON_DATABASE.md`.
 
 ## Example Render environment variables
 
@@ -59,11 +67,17 @@ DATABASE_URL=postgresql+asyncpg://user:password@host:5432/dbname?sslmode=require
 ENV=production
 APP_NAME=SmartEscrow
 API_V1_PREFIX=/api/v1
-DATABASE_URL=postgresql+asyncpg://user:password@host:5432/dbname?sslmode=require
+DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@ep-xxx-pooler.REGION.aws.neon.tech/neondb?sslmode=require&channel_binding=require
 JWT_SECRET_KEY=generate_a_long_random_secret
 JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+# Real OTP email (free via Resend). Verify a domain in Resend to email all users.
+OTP_DELIVERY=auto
+OTP_TTL_MINUTES=15
+RESEND_API_KEY=re_your_key
+SMTP_FROM=SmartEscrow <onboarding@resend.dev>
 PAYMENT_PROVIDER=mock
-PAYMENT_CURRENCY=INR
+PAYMENT_CURRENCY=USD
 GITHUB_WEBHOOK_SECRET=random_secret
 GITHUB_APP_TOKEN=ghp_your_token
 OLLAMA_HOST=http://localhost:11434
