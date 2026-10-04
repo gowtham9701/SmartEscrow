@@ -9,7 +9,9 @@ payouts, and a full audit trail. Seeds a rich demo dataset on first run.
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
+import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -17,6 +19,8 @@ from jose import jwt
 
 from app.core.config import settings
 from app.marketplace import ai, db, notifications
+
+logger = logging.getLogger("smartescrow.store")
 
 
 # --------------------------------------------------------------------------- #
@@ -233,15 +237,29 @@ def start_registration(username: str, email: str, phone: str, password: str,
     )
     audit(None, "registration.start", "pending_registration", reg_id, {"email": email, "username": username})
 
-    # Deliver the single email code. Real email when Resend/SMTP is configured; else demo.
-    delivery = notifications.send_registration_otp(email, full_name, email_otp)
+    # Dev aid: in local/non-production, log the code to the backend console so the
+    # flow can be tested without a configured email provider. Never logs in prod.
+    if settings.ENV != "production":
+        logger.info("[DEV] Registration code for %s: %s", email, email_otp)
+
+    # Deliver the single email code. Email is sent in the background so the
+    # request returns instantly (no waiting on SMTP). Demo mode returns the code.
+    mode = notifications.delivery_mode()
     result = {
         "registration_id": reg_id,
         "email": email,
         "phone": phone,
-        "delivery": delivery.get("delivery", "demo"),
+        "delivery": mode,
     }
-    if delivery.get("delivery") == "demo":
+    if mode == "email":
+        threading.Thread(
+            target=notifications.send_registration_otp,
+            args=(email, full_name, email_otp),
+            daemon=True,
+        ).start()
+    # Expose the code only in non-production so testers can read it from the
+    # browser console (it is never rendered in the UI). Never exposed in prod.
+    if mode == "demo" or settings.ENV != "production":
         result["demo_email_otp"] = email_otp
     return result
 
@@ -256,9 +274,17 @@ def resend_registration_otp(reg_id: str) -> dict:
         "UPDATE pending_registrations SET email_otp = ?, attempts = 0 WHERE id = ?",
         (email_otp, reg_id),
     )
-    delivery = notifications.send_registration_otp(reg["email"], reg["full_name"], email_otp)
-    result = {"registration_id": reg_id, "delivery": delivery.get("delivery", "demo")}
-    if delivery.get("delivery") == "demo":
+    if settings.ENV != "production":
+        logger.info("[DEV] Resent registration code for %s: %s", reg["email"], email_otp)
+    mode = notifications.delivery_mode()
+    result = {"registration_id": reg_id, "delivery": mode}
+    if mode == "email":
+        threading.Thread(
+            target=notifications.send_registration_otp,
+            args=(reg["email"], reg["full_name"], email_otp),
+            daemon=True,
+        ).start()
+    if mode == "demo" or settings.ENV != "production":
         result["demo_email_otp"] = email_otp
     return result
 

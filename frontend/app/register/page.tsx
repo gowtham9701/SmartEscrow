@@ -6,6 +6,7 @@ import { Suspense, useState } from 'react';
 import { SiteHeader } from '@/components/site-header';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
+import { usePersistentState } from '@/lib/use-persistent-state';
 import type { Role } from '@/lib/types';
 
 interface StartResult {
@@ -23,17 +24,18 @@ function RegisterForm() {
   const initialRole = (params.get('role') as Role) || 'contributor';
 
   const [step, setStep] = useState<'details' | 'otp'>('details');
-  const [role, setRole] = useState<Role>(initialRole === 'client' ? 'client' : 'contributor');
+  const [role, setRole] = usePersistentState<Role>('se_reg_role', initialRole === 'client' ? 'client' : 'contributor');
 
-  const [fullName, setFullName] = useState('');
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  // Non-sensitive fields are cached and reused next time (password is never cached).
+  const [fullName, setFullName] = usePersistentState('se_reg_fullName', '');
+  const [username, setUsername] = usePersistentState('se_reg_username', '');
+  const [email, setEmail] = usePersistentState('se_reg_email', '');
+  const [phone, setPhone] = usePersistentState('se_reg_phone', '');
   const [password, setPassword] = useState('');
-  const [title, setTitle] = useState('');
-  const [rate, setRate] = useState(55);
-  const [company, setCompany] = useState('');
-  const [skills, setSkills] = useState('');
+  const [title, setTitle] = usePersistentState('se_reg_title', '');
+  const [rate, setRate] = usePersistentState('se_reg_rate', 55);
+  const [company, setCompany] = usePersistentState('se_reg_company', '');
+  const [skills, setSkills] = usePersistentState('se_reg_skills', '');
 
   const [startRes, setStartRes] = useState<StartResult | null>(null);
   const [emailOtp, setEmailOtp] = useState('');
@@ -59,6 +61,12 @@ function RegisterForm() {
         skills: skills ? skills.split(',').map((s) => s.trim()).filter(Boolean) : [],
       });
       setStartRes(res);
+      // Dev aid: the code is surfaced only in the browser console (never in the UI)
+      // so the flow is testable locally. In production the backend omits it entirely.
+      if (res.demo_email_otp) {
+        // eslint-disable-next-line no-console
+        console.info(`[SmartEscrow dev] Verification code: ${res.demo_email_otp}`);
+      }
       setStep('otp');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -93,6 +101,10 @@ function RegisterForm() {
         delivery: res.delivery,
         demo_email_otp: res.demo_email_otp,
       });
+      if (res.demo_email_otp) {
+        // eslint-disable-next-line no-console
+        console.info(`[SmartEscrow dev] Verification code: ${res.demo_email_otp}`);
+      }
       setEmailOtp('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not resend');
@@ -114,9 +126,9 @@ function RegisterForm() {
             : "Whether you're hiring elite talent or offering your skills, you're minutes from a verified live profile."}
         </p>
         <ul className="mt-8 space-y-3 text-sm text-ink/70">
-          <li>— Email OTP verification (free)</li>
-          <li>— Sign in with your username and password</li>
           <li>— AI-summarized job posts and ranked matches</li>
+          <li>— Automated USD escrow that pays on verified delivery</li>
+          <li>— Transparent hourly rates, set by you</li>
         </ul>
       </div>
 
@@ -182,31 +194,16 @@ function RegisterForm() {
             <div>
               <div className="font-display text-xl font-bold tracking-tight">Verify your account</div>
               <p className="mt-1 text-sm text-ink/60">
-                {startRes?.delivery === 'email' ? (
-                  <>We emailed a 6-digit code to <span className="font-medium">{startRes?.email}</span>. Enter it below.</>
-                ) : (
-                  <>Enter the code for <span className="font-medium">{startRes?.email}</span>.</>
-                )}
+                We emailed a 6-digit code to <span className="font-medium">{startRes?.email}</span>. Enter it below.
               </p>
             </div>
 
-            {startRes?.delivery === 'email' ? (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-500/15 p-3">
-                <div className="mono-label text-emerald-700 dark:text-emerald-200">✉ Codes sent to your email</div>
-                <p className="mt-1 font-mono text-[11px] text-emerald-800 dark:text-emerald-200">
-                  Check your inbox (and spam) for your verification code.
-                </p>
-              </div>
-            ) : (
-              startRes && (
-                <div className="rounded-xl border border-amber-200 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/15 p-3">
-                  <div className="mono-label text-amber-700 dark:text-amber-200">Demo mode — code auto-generated</div>
-                  <div className="mt-2 font-mono text-sm text-amber-800 dark:text-amber-200">
-                    Email code: <strong>{startRes.demo_email_otp}</strong>
-                  </div>
-                </div>
-              )
-            )}
+            <div className="rounded-xl border border-emerald-200 dark:border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/15 p-3">
+              <div className="mono-label text-emerald-700 dark:text-emerald-200">✉ Code sent to your email</div>
+              <p className="mt-1 font-mono text-[11px] text-emerald-800 dark:text-emerald-200">
+                Check your inbox (and spam). Didn&apos;t get it? Tap &quot;Resend code&quot; below.
+              </p>
+            </div>
 
             <label className="block">
               <span className="mono-label mb-2 block">Email Verification Code</span>

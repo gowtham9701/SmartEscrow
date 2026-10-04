@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { SiteHeader } from '@/components/site-header';
 import { useAuth } from '@/lib/auth-context';
+import { usePersistentState } from '@/lib/use-persistent-state';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
-  const [identifier, setIdentifier] = useState('');
+  const [identifier, setIdentifier] = usePersistentState('se_login_identifier', '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);

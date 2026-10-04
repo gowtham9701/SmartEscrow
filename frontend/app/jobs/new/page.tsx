@@ -7,6 +7,7 @@ import { SiteFooter } from '@/components/site-footer';
 import { SkillChips } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { usePersistentState } from '@/lib/use-persistent-state';
 import type { JobAI } from '@/lib/types';
 
 const CATEGORIES = ['Backend', 'Frontend', 'AI / ML', 'Design', 'DevOps', 'Security', 'Mobile', 'Data'];
@@ -16,15 +17,15 @@ export default function NewJobPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Backend');
-  const [description, setDescription] = useState('');
-  const [skills, setSkills] = useState('');
-  const [rateMin, setRateMin] = useState(50);
-  const [rateMax, setRateMax] = useState(90);
-  const [level, setLevel] = useState('Senior');
-  const [hours, setHours] = useState(30);
-  const [duration, setDuration] = useState('3-6 months');
+  const [title, setTitle] = usePersistentState('se_job_title', '');
+  const [category, setCategory] = usePersistentState('se_job_category', 'Backend');
+  const [description, setDescription] = usePersistentState('se_job_description', '');
+  const [skills, setSkills] = usePersistentState('se_job_skills', '');
+  const [rateMin, setRateMin] = usePersistentState('se_job_rateMin', 50);
+  const [rateMax, setRateMax] = usePersistentState('se_job_rateMax', 90);
+  const [level, setLevel] = usePersistentState('se_job_level', 'Senior');
+  const [hours, setHours] = usePersistentState('se_job_hours', 30);
+  const [duration, setDuration] = usePersistentState('se_job_duration', '3-6 months');
 
   const [ai, setAi] = useState<JobAI | null>(null);
   const [submitting, setSubmitting] = useState(false);
