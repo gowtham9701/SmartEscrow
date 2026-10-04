@@ -42,6 +42,21 @@ class Settings(BaseSettings):
     # Fiat-Staking Integrity Model
     INTEGRITY_STAKE_INR_PAISA: int = 2500  # ₹25.00 refundable stake (2,500 paise)
 
+    # Email / OTP delivery (zero-cost: use any free SMTP such as Gmail App Password
+    # or Brevo/Resend free tier). When SMTP is not configured the app falls back to
+    # "demo" mode and returns the OTP in the API response so local testing still works.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "SmartEscrow <no-reply@smartescrow.io>"
+    SMTP_USE_TLS: bool = True
+    # Optional HTTP email provider (works where SMTP ports are blocked).
+    RESEND_API_KEY: str = ""
+    # auto = real email if Resend/SMTP configured else demo; force "email" or "demo".
+    OTP_DELIVERY: str = "auto"
+    OTP_TTL_MINUTES: int = 15
+
 
 @lru_cache
 def get_settings() -> Settings:

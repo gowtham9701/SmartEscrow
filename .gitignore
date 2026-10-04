@@ -11,3 +11,9 @@ out/
 dist/
 build/
 .ollama_cache/
+
+# SQLite demo database (reseeds on startup)
+smartescrow.db
+smartescrow.db-wal
+smartescrow.db-shm
+*.db
