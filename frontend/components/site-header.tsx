@@ -121,7 +121,7 @@ export function SiteHeader() {
                       <span>Theme</span>
                       <span className="font-mono text-xs text-ink/60">{theme === 'dark' ? 'Dark 🌙' : 'Light ☀️'}</span>
                     </button>
-                    <button onClick={() => { setMenuOpen(false); logout(); }} className="block w-full px-4 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50">Log out</button>
+                    <button onClick={() => { setMenuOpen(false); logout(); }} className="block w-full px-4 py-2.5 text-left text-sm text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/15">Log out</button>
                   </div>
                 )}
               </div>

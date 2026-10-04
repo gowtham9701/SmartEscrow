@@ -138,8 +138,8 @@ export function ProfileEditor() {
           </>
         )}
 
-        {error && <div className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
-        {saved && <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Profile saved.</div>}
+        {error && <div className="rounded-xl border border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/15 px-3 py-2 text-sm text-rose-700 dark:text-rose-200">{error}</div>}
+        {saved && <div className="rounded-xl border border-emerald-300 dark:border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/15 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-200">Profile saved.</div>}
 
         <button type="submit" disabled={saving} className="btn-navy w-full disabled:opacity-60">
           {saving ? 'Saving…' : 'Save Profile'}

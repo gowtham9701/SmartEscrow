@@ -87,7 +87,7 @@ export function WalletPanel() {
           </div>
           <div className="mt-8 flex flex-wrap gap-3">
             {isClient ? (
-              <button onClick={() => setGatewayOpen(true)} className="btn-ink bg-paper text-ink hover:bg-paper/90">
+              <button onClick={() => setGatewayOpen(true)} className="btn-ink bg-paper text-coal hover:bg-paper/90">
                 + Add Funds
               </button>
             ) : (
@@ -101,7 +101,7 @@ export function WalletPanel() {
                     className="mt-1 w-28 rounded-lg bg-paper/10 px-3 py-2 text-sm text-paper outline-none"
                   />
                 </label>
-                <button onClick={withdraw} disabled={busy} className="btn-ink bg-paper text-ink hover:bg-paper/90 disabled:opacity-50">
+                <button onClick={withdraw} disabled={busy} className="btn-ink bg-paper text-coal hover:bg-paper/90 disabled:opacity-50">
                   Payout
                 </button>
               </div>
@@ -123,8 +123,8 @@ export function WalletPanel() {
               <div className="font-display text-lg font-bold">{formatUSD(wallet.available_balance)}</div>
               <div className="mono-label mt-1">Spendable</div>
             </div>
-            <div className="rounded-xl bg-amber-50 p-3">
-              <div className="font-display text-lg font-bold text-amber-700">{formatUSD(wallet.blocked_balance)}</div>
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-500/15 p-3">
+              <div className="font-display text-lg font-bold text-amber-700 dark:text-amber-200">{formatUSD(wallet.blocked_balance)}</div>
               <div className="mono-label mt-1">Blocked</div>
             </div>
           </div>
@@ -186,7 +186,7 @@ export function WalletPanel() {
                   <tr key={t.id}>
                     <td className="px-5 py-4 font-medium">{TX_LABELS[t.type] || t.type}</td>
                     <td className="px-5 py-4 text-ink/60">{t.note}</td>
-                    <td className={`px-5 py-4 font-display font-bold ${t.amount >= 0 ? 'text-emerald-600' : 'text-ink'}`}>
+                    <td className={`px-5 py-4 font-display font-bold ${t.amount >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-ink'}`}>
                       {t.amount >= 0 ? '+' : ''}{formatUSD(t.amount)}
                     </td>
                     <td className="px-5 py-4 font-mono text-xs text-ink/50">{formatUSD(t.available_after)}</td>

@@ -177,9 +177,9 @@ export default function JobDetailPage() {
             </div>
 
             {applied ? (
-              <div className="mt-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-center">
-                <div className="font-display text-lg font-bold tracking-tight text-emerald-800">Applied!</div>
-                <p className="mt-1 text-sm text-emerald-700">Track it from your dashboard.</p>
+              <div className="mt-6 rounded-xl border border-emerald-300 dark:border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/15 p-4 text-center">
+                <div className="font-display text-lg font-bold tracking-tight text-emerald-800 dark:text-emerald-200">Applied!</div>
+                <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-200">Track it from your dashboard.</p>
                 <Link href="/dashboard" className="btn-navy mt-4 w-full">Go to Dashboard</Link>
               </div>
             ) : user?.role === 'client' ? (
@@ -208,7 +208,7 @@ export default function JobDetailPage() {
                   />
                 </label>
                 {error && (
-                  <div className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+                  <div className="rounded-xl border border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/15 px-3 py-2 text-sm text-rose-700 dark:text-rose-200">{error}</div>
                 )}
                 <button type="submit" disabled={applying} className="btn-navy w-full disabled:opacity-60">
                   {applying ? 'Submitting…' : user ? 'Submit Application' : 'Sign in to Apply'}

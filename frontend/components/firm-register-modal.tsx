@@ -67,7 +67,7 @@ export function FirmRegisterModal({
         <div className="p-6 md:p-8">
           {verified ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600">✓</div>
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/25 text-3xl text-emerald-600 dark:text-emerald-300">✓</div>
               <div className="mt-5 font-display text-2xl font-bold tracking-tight">Firm Verified</div>
               <p className="mt-2 text-sm text-ink/60">Employer rights unlocked. Switching to employer mode…</p>
             </div>
@@ -88,7 +88,7 @@ export function FirmRegisterModal({
                   <Select label="Industry" value={industry} onChange={setIndustry} options={INDUSTRIES} />
                 </div>
 
-                {error && <div className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
+                {error && <div className="rounded-xl border border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/15 px-3 py-2 text-sm text-rose-700 dark:text-rose-200">{error}</div>}
 
                 <button type="submit" disabled={loading} className="btn-navy w-full disabled:opacity-60">
                   {loading ? 'Verifying firm…' : 'Verify & Unlock Employer Rights'}

@@ -165,7 +165,7 @@ function RegisterForm() {
                 </>
               )}
 
-              {error && <div className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
+              {error && <div className="rounded-xl border border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/15 px-3 py-2 text-sm text-rose-700 dark:text-rose-200">{error}</div>}
 
               <button type="submit" disabled={loading} className="btn-navy w-full disabled:opacity-60">
                 {loading ? 'Sending OTP…' : 'Continue — Verify OTP'}
@@ -191,17 +191,17 @@ function RegisterForm() {
             </div>
 
             {startRes?.delivery === 'email' ? (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                <div className="mono-label text-emerald-700">✉ Codes sent to your email</div>
-                <p className="mt-1 font-mono text-[11px] text-emerald-800">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-500/15 p-3">
+                <div className="mono-label text-emerald-700 dark:text-emerald-200">✉ Codes sent to your email</div>
+                <p className="mt-1 font-mono text-[11px] text-emerald-800 dark:text-emerald-200">
                   Check your inbox (and spam) for your verification code.
                 </p>
               </div>
             ) : (
               startRes && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                  <div className="mono-label text-amber-700">Demo mode — code auto-generated</div>
-                  <div className="mt-2 font-mono text-sm text-amber-800">
+                <div className="rounded-xl border border-amber-200 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/15 p-3">
+                  <div className="mono-label text-amber-700 dark:text-amber-200">Demo mode — code auto-generated</div>
+                  <div className="mt-2 font-mono text-sm text-amber-800 dark:text-amber-200">
                     Email code: <strong>{startRes.demo_email_otp}</strong>
                   </div>
                 </div>
@@ -219,7 +219,7 @@ function RegisterForm() {
               />
             </label>
 
-            {error && <div className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
+            {error && <div className="rounded-xl border border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/15 px-3 py-2 text-sm text-rose-700 dark:text-rose-200">{error}</div>}
 
             <button type="submit" disabled={loading || emailOtp.length < 6} className="btn-navy w-full disabled:opacity-60">
               {loading ? 'Verifying…' : 'Verify & Create Account'}

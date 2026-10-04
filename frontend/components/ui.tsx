@@ -24,18 +24,18 @@ export function Avatar({ name, hue = 210, size = 48 }: { name: string; hue?: num
 
 const STATUS_STYLES: Record<string, string> = {
   submitted: 'bg-ink/10 text-ink/70',
-  shortlisted: 'bg-blue-100 text-blue-800',
-  interview: 'bg-amber-100 text-amber-800',
-  offer: 'bg-violet-100 text-violet-800',
-  hired: 'bg-emerald-100 text-emerald-800',
-  rejected: 'bg-rose-100 text-rose-700',
-  active: 'bg-emerald-100 text-emerald-800',
-  paused: 'bg-amber-100 text-amber-800',
-  completed: 'bg-emerald-100 text-emerald-800',
-  in_escrow: 'bg-amber-100 text-amber-800',
-  funded: 'bg-blue-100 text-blue-800',
-  released: 'bg-emerald-100 text-emerald-800',
-  open: 'bg-emerald-100 text-emerald-800',
+  shortlisted: 'bg-blue-100 dark:bg-blue-500/25 text-blue-800 dark:text-blue-200',
+  interview: 'bg-amber-100 dark:bg-amber-500/25 text-amber-800 dark:text-amber-200',
+  offer: 'bg-violet-100 dark:bg-violet-500/25 text-violet-800 dark:text-violet-200',
+  hired: 'bg-emerald-100 dark:bg-emerald-500/25 text-emerald-800 dark:text-emerald-200',
+  rejected: 'bg-rose-100 dark:bg-rose-500/25 text-rose-700 dark:text-rose-200',
+  active: 'bg-emerald-100 dark:bg-emerald-500/25 text-emerald-800 dark:text-emerald-200',
+  paused: 'bg-amber-100 dark:bg-amber-500/25 text-amber-800 dark:text-amber-200',
+  completed: 'bg-emerald-100 dark:bg-emerald-500/25 text-emerald-800 dark:text-emerald-200',
+  in_escrow: 'bg-amber-100 dark:bg-amber-500/25 text-amber-800 dark:text-amber-200',
+  funded: 'bg-blue-100 dark:bg-blue-500/25 text-blue-800 dark:text-blue-200',
+  released: 'bg-emerald-100 dark:bg-emerald-500/25 text-emerald-800 dark:text-emerald-200',
+  open: 'bg-emerald-100 dark:bg-emerald-500/25 text-emerald-800 dark:text-emerald-200',
 };
 
 export function StatusPill({ status }: { status: string }) {
@@ -63,7 +63,7 @@ export function SkillChips({ skills, max = 6 }: { skills: string[]; max?: number
 }
 
 export function MatchBadge({ score }: { score: number }) {
-  const tone = score >= 70 ? 'bg-emerald-600' : score >= 40 ? 'bg-amber-500' : 'bg-ink/50';
+  const tone = score >= 70 ? 'bg-emerald-600' : score >= 40 ? 'bg-amber-500' : 'bg-slate-500';
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-white ${tone}`}>
       {score}% match

@@ -157,12 +157,12 @@ export default function HomePage() {
             your team.
           </h2>
           <div className="mt-10 flex flex-wrap gap-4">
-            <Link href="/register?role=client" className="btn-ink bg-paper text-ink hover:bg-paper/90">
+            <Link href="/register?role=client" className="btn-ink bg-paper text-coal hover:bg-paper/90">
               Post a Job
             </Link>
             <Link
               href="/register?role=contributor"
-              className="btn-outline border-paper/40 text-paper hover:bg-paper hover:text-ink"
+              className="btn-outline border-paper/40 text-paper hover:bg-paper hover:text-coal"
             >
               Join as Talent
             </Link>

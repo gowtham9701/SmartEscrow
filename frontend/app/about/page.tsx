@@ -56,8 +56,8 @@ export default function AboutPage() {
         <div className="rounded-3xl bg-coal px-8 py-16 text-paper md:px-16">
           <h2 className="display text-[clamp(1.8rem,5vw,3.5rem)]">Join the platform.</h2>
           <div className="mt-8 flex flex-wrap gap-4">
-            <Link href="/register" className="btn-ink bg-paper text-ink hover:bg-paper/90">Get Started</Link>
-            <Link href="/contact" className="btn-outline border-paper/40 text-paper hover:bg-paper hover:text-ink">Contact Us</Link>
+            <Link href="/register" className="btn-ink bg-paper text-coal hover:bg-paper/90">Get Started</Link>
+            <Link href="/contact" className="btn-outline border-paper/40 text-paper hover:bg-paper hover:text-coal">Contact Us</Link>
           </div>
         </div>
       </section>

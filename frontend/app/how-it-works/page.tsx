@@ -65,8 +65,8 @@ export default function HowItWorksPage() {
         <div className="rounded-3xl bg-coal px-8 py-16 text-paper md:px-16">
           <h2 className="display text-[clamp(1.8rem,5vw,3.5rem)]">Start in minutes.</h2>
           <div className="mt-8 flex flex-wrap gap-4">
-            <Link href="/register?role=client" className="btn-ink bg-paper text-ink hover:bg-paper/90">Hire Talent</Link>
-            <Link href="/register?role=contributor" className="btn-outline border-paper/40 text-paper hover:bg-paper hover:text-ink">Find Work</Link>
+            <Link href="/register?role=client" className="btn-ink bg-paper text-coal hover:bg-paper/90">Hire Talent</Link>
+            <Link href="/register?role=contributor" className="btn-outline border-paper/40 text-paper hover:bg-paper hover:text-coal">Find Work</Link>
           </div>
         </div>
       </section>

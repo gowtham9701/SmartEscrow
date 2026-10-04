@@ -224,19 +224,19 @@ function Overview({
 
       {/* Onboarding prompts */}
       {needsFirm && (
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-300 bg-amber-50 p-6">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/15 p-6">
           <div>
-            <div className="font-display text-lg font-bold tracking-tight text-amber-800">Verify your firm to start hiring</div>
-            <p className="mt-1 text-sm text-amber-700">Employer rights (posting jobs, hiring, escrow) unlock once your business is verified.</p>
+            <div className="font-display text-lg font-bold tracking-tight text-amber-800 dark:text-amber-200">Verify your firm to start hiring</div>
+            <p className="mt-1 text-sm text-amber-700 dark:text-amber-200">Employer rights (posting jobs, hiring, escrow) unlock once your business is verified.</p>
           </div>
           <button onClick={onRegisterFirm} className="btn-navy">Register Firm</button>
         </div>
       )}
       {needsResume && (
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-300 bg-amber-50 p-6">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/15 p-6">
           <div>
-            <div className="font-display text-lg font-bold tracking-tight text-amber-800">Add your resume to get hired</div>
-            <p className="mt-1 text-sm text-amber-700">Employers can only find and hire you once your freelancer profile has a resume.</p>
+            <div className="font-display text-lg font-bold tracking-tight text-amber-800 dark:text-amber-200">Add your resume to get hired</div>
+            <p className="mt-1 text-sm text-amber-700 dark:text-amber-200">Employers can only find and hire you once your freelancer profile has a resume.</p>
           </div>
           <button onClick={() => onNavigate('resume')} className="btn-navy">Upload Resume</button>
         </div>
@@ -426,13 +426,13 @@ function ApplicantsPanel({ apps, busy, onStatus }: { apps: Application[]; busy: 
                 disabled={busy}
                 onClick={() => onStatus(a.id, s)}
                 className={`rounded-full px-4 py-2 font-mono text-[11px] uppercase tracking-wide transition disabled:opacity-50 ${
-                  s === 'rejected' ? 'border border-rose-300 text-rose-600 hover:bg-rose-50' : 'bg-navy text-paper hover:bg-navy-700'
+                  s === 'rejected' ? 'border border-rose-300 dark:border-rose-500/40 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/15' : 'bg-navy text-paper hover:bg-navy-700'
                 }`}
               >
                 {s === 'hired' ? 'Hire' : s}
               </button>
             ))}
-            {a.status === 'hired' && <span className="font-mono text-xs text-emerald-700">✓ Engagement created</span>}
+            {a.status === 'hired' && <span className="font-mono text-xs text-emerald-700 dark:text-emerald-200">✓ Engagement created</span>}
           </div>
         </div>
       ))}
@@ -503,7 +503,7 @@ function EngagementsPanel({
           {isClient && e.status === 'active' && (
             <div className="mt-5">
               {fundId === e.id ? (
-                <div className="flex flex-wrap items-end gap-3 rounded-xl bg-amber-50 p-4">
+                <div className="flex flex-wrap items-end gap-3 rounded-xl bg-amber-50 dark:bg-amber-500/15 p-4">
                   <label className="block">
                     <span className="mono-label mb-1 block">Hours to block</span>
                     <input type="number" min={1} value={fundHours} onChange={(ev) => setFundHours(Number(ev.target.value))} className="input w-28" />

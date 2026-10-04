@@ -228,7 +228,7 @@ export function PaymentGatewayModal({
 
           {step === 'success' && result && (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/25 text-3xl text-emerald-600 dark:text-emerald-300">
                 ✓
               </div>
               <div className="mt-5 font-display text-2xl font-bold tracking-tight">Payment Successful</div>
@@ -242,11 +242,11 @@ export function PaymentGatewayModal({
 
           {step === 'error' && (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-3xl text-rose-600">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-500/25 text-3xl text-rose-600 dark:text-rose-300">
                 ×
               </div>
               <div className="mt-5 font-display text-2xl font-bold tracking-tight">Payment Failed</div>
-              <p className="mt-2 text-sm text-rose-600">{error}</p>
+              <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{error}</p>
               <div className="mt-6 flex w-full gap-3">
                 <button onClick={close} className="btn-ghost flex-1">Cancel</button>
                 <button onClick={() => setStep('card')} className="btn-navy flex-1">Try Again</button>

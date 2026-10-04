@@ -57,9 +57,9 @@ export function ResumeManager() {
         <div className="flex items-center justify-between">
           <div className="mono-label text-accent">📄 Resume & AI Skill Analysis</div>
           {hasResume ? (
-            <span className="font-mono text-[10px] text-emerald-600">✓ On file{fileName ? ` · ${fileName}` : ''}</span>
+            <span className="font-mono text-[10px] text-emerald-600 dark:text-emerald-300">✓ On file{fileName ? ` · ${fileName}` : ''}</span>
           ) : (
-            <span className="font-mono text-[10px] text-amber-600">Required to apply for jobs</span>
+            <span className="font-mono text-[10px] text-amber-600 dark:text-amber-300">Required to apply for jobs</span>
           )}
         </div>
         <p className="mt-2 text-sm text-ink/60">
@@ -103,7 +103,7 @@ export function ResumeManager() {
           />
         </div>
 
-        {error && <div className="mt-4 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
+        {error && <div className="mt-4 rounded-xl border border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/15 px-3 py-2 text-sm text-rose-700 dark:text-rose-200">{error}</div>}
 
         <button onClick={analyzeText} disabled={busy} className="btn-navy mt-5 w-full disabled:opacity-60">
           {busy ? 'Analyzing with AI…' : '✦ Analyze & Save Resume'}
@@ -139,7 +139,7 @@ export function ResumeInsights({ analysis }: { analysis: ResumeAnalysis }) {
             <p className="mb-2 mt-1 font-mono text-[11px] text-ink/50">In-demand across open roles — add these to boost your matches.</p>
             <div className="flex flex-wrap gap-2">
               {analysis.recommended_skills.map((s) => (
-                <span key={s} className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 font-mono text-[11px] uppercase tracking-wide text-amber-700">
+                <span key={s} className="rounded-full border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/15 px-3 py-1 font-mono text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-200">
                   + {s}
                 </span>
               ))}
