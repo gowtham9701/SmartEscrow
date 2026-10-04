@@ -42,11 +42,17 @@ def _hue(name: str) -> int:
 
 def _audit(actor_id, actor_name, action, entity_type, entity_id, detail, created_at):
     category = action.split(".")[0] if "." in action else "general"
-    db.execute(
-        "INSERT INTO operations (user_id, user_name, action, category, entity_type, entity_id, details, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?)",
-        (actor_id, actor_name, action, category, entity_type, entity_id, db.dumps(detail), created_at),
-    )
+    db.op_insert("activity", {
+        "id": _id("act"),
+        "user_id": actor_id,
+        "user_name": actor_name,
+        "action": action,
+        "category": category,
+        "entity_type": entity_type,
+        "entity_id": entity_id,
+        "details": detail,
+        "created_at": created_at,
+    }, actor=actor_id)
 
 
 def seed_if_empty() -> None:
@@ -75,21 +81,19 @@ def _build() -> None:
             + "\n".join(f"- {e['role']}, {e['company']} ({e['period']}): {e['summary']}" for e in experiences)
             + "\n\nACHIEVEMENTS\n" + "\n".join(f"- {a}" for a in achievements)
         )
-        db.execute(
-            """INSERT INTO users (
-                id,email,username,phone,password_hash,full_name,role,active_mode,is_freelancer,is_employer,firm_verified,
-                email_verified,phone_verified,title,headline,bio,location,country_code,
-                hourly_rate_usd,years_experience,availability,github_username,rating,completed_jobs,
-                avatar_hue,skills,services,experiences,achievements,portfolio,languages,
-                resume_text,resume_filename,resume_updated_at,created_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (uid, email, _uname(email), phone, _hash(DEMO_PASSWORD), name, "contributor", "freelancer", 1, 0, 0,
-             1, 1, title, title, bio, location, country,
-             rate, years, "available", github, rating, completed, _hue(name),
-             db.dumps(skills), db.dumps(services), db.dumps(experiences), db.dumps(achievements),
-             db.dumps(portfolio), db.dumps(["English"]),
-             resume, f"{_uname(email)}_resume.pdf", _ago(days=10), _ago(days=years * 8 + 20)),
-        )
+        db.user_insert({
+            "id": uid, "email": email, "username": _uname(email), "phone": phone,
+            "password_hash": _hash(DEMO_PASSWORD), "full_name": name, "role": "contributor",
+            "active_mode": "freelancer", "is_freelancer": 1, "is_employer": 0, "firm_verified": 0,
+            "email_verified": 1, "phone_verified": 1,
+            "title": title, "headline": title, "bio": bio, "location": location, "country_code": country,
+            "hourly_rate_usd": rate, "years_experience": years, "availability": "available",
+            "github_username": github, "rating": rating, "completed_jobs": completed, "avatar_hue": _hue(name),
+            "skills": skills, "services": services, "experiences": experiences,
+            "achievements": achievements, "portfolio": portfolio, "languages": ["English"],
+            "resume_text": resume, "resume_filename": f"{_uname(email)}_resume.pdf",
+            "resume_updated_at": _ago(days=10), "created_at": _ago(days=years * 8 + 20),
+        })
         avail[uid] = 0.0
         blocked[uid] = 0.0
         return uid
@@ -97,21 +101,18 @@ def _build() -> None:
     def add_client(email, name, company, size, industry, website, bio, phone=""):
         uid = _id("usr")
         names[uid] = company
-        db.execute(
-            """INSERT INTO users (
-                id,email,username,phone,password_hash,full_name,role,active_mode,is_freelancer,is_employer,firm_verified,
-                firm_reg_number,firm_work_email,email_verified,phone_verified,
-                headline,bio,location,country_code,
-                company_name,company_size,industry,website,rating,jobs_posted,avatar_hue,
-                skills,services,experiences,achievements,portfolio,languages,created_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (uid, email, _uname(email), phone, _hash(DEMO_PASSWORD), name, "client", "employer", 0, 1, 1,
-             f"REG-{abs(hash(company)) % 900000 + 100000}", email, 1, 1,
-             f"{company} — {industry}", bio, "Global", "US",
-             company, size, industry, website, 4.8, 0, _hue(company),
-             db.dumps([]), db.dumps([]), db.dumps([]), db.dumps([]), db.dumps([]), db.dumps(["English"]),
-             _ago(days=150)),
-        )
+        db.user_insert({
+            "id": uid, "email": email, "username": _uname(email), "phone": phone,
+            "password_hash": _hash(DEMO_PASSWORD), "full_name": name, "role": "client",
+            "active_mode": "employer", "is_freelancer": 0, "is_employer": 1, "firm_verified": 1,
+            "firm_reg_number": f"REG-{abs(hash(company)) % 900000 + 100000}", "firm_work_email": email,
+            "email_verified": 1, "phone_verified": 1,
+            "headline": f"{company} — {industry}", "bio": bio, "location": "Global", "country_code": "US",
+            "company_name": company, "company_size": size, "industry": industry, "website": website,
+            "rating": 4.8, "jobs_posted": 0, "avatar_hue": _hue(company),
+            "skills": [], "services": [], "experiences": [], "achievements": [], "portfolio": [],
+            "languages": ["English"], "created_at": _ago(days=150),
+        })
         avail[uid] = 0.0
         blocked[uid] = 0.0
         return uid
@@ -320,16 +321,15 @@ def _build() -> None:
     # ---------------------- Jobs (15) ---------------------- #
     def add_job(client_id, title, category, desc, skills, rate_min, rate_max, level, hours, duration, days_ago):
         jid = _id("job")
-        db.execute(
-            """INSERT INTO jobs (
-                id,client_id,company_name,title,category,description,skills_required,engagement_type,
-                hourly_rate_min,hourly_rate_max,experience_level,location,hours_per_week,duration,status,ai,created_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (jid, client_id, names[client_id], title, category, desc, db.dumps(skills), "hourly",
-             rate_min, rate_max, level, "Remote", hours, duration, "open",
-             db.dumps(ai.analyze_job(title, desc, skills)), _ago(days=days_ago)),
-        )
-        db.execute("UPDATE users SET jobs_posted = jobs_posted + 1 WHERE id = ?", (client_id,))
+        db.op_insert("job", {
+            "id": jid, "client_id": client_id, "company_name": names[client_id], "title": title,
+            "category": category, "description": desc, "skills_required": skills, "engagement_type": "hourly",
+            "hourly_rate_min": rate_min, "hourly_rate_max": rate_max, "experience_level": level,
+            "location": "Remote", "hours_per_week": hours, "duration": duration, "status": "open",
+            "ai": ai.analyze_job(title, desc, skills), "created_at": _ago(days=days_ago),
+        }, actor=client_id)
+        client = db.user_get(client_id)
+        db.user_update(client_id, {"jobs_posted": int(client.get("jobs_posted") or 0) + 1})
         return jid
 
     j_backend1 = add_job(cl_apex, "Senior Backend Engineer — Payments Ledger", "Backend",
@@ -406,11 +406,11 @@ def _build() -> None:
     # ---------------------- Applications ---------------------- #
     def add_application(job_id, contributor_id, rate, status, note, days_ago):
         aid = _id("app")
-        db.execute(
-            "INSERT INTO applications (id,job_id,contributor_id,proposed_hourly_rate,status,cover_letter,created_at) "
-            "VALUES (?,?,?,?,?,?,?)",
-            (aid, job_id, contributor_id, rate, status, note, _ago(days=days_ago)),
-        )
+        db.op_insert("application", {
+            "id": aid, "job_id": job_id, "contributor_id": contributor_id,
+            "proposed_hourly_rate": rate, "status": status, "cover_letter": note,
+            "created_at": _ago(days=days_ago),
+        }, actor=contributor_id, job=job_id)
         _audit(contributor_id, names[contributor_id], "application.submit", "application", aid,
                {"job_id": job_id, "rate": rate}, _ago(days=days_ago))
         return aid
@@ -453,28 +453,26 @@ def _build() -> None:
     # ---------------------- Wallets, cards, engagements, escrow, payments ---------------------- #
     def set_wallet(uid):
         wid = _id("wal")
-        db.execute(
-            "INSERT INTO wallets (id,user_id,available_balance,blocked_balance,currency,created_at) VALUES (?,?,?,?,?,?)",
-            (wid, uid, round(avail[uid], 2), round(blocked[uid], 2), "USD", _ago(days=120)),
-        )
+        db.op_insert("wallet", {
+            "id": wid, "user_id": uid, "available_balance": round(avail[uid], 2),
+            "blocked_balance": round(blocked[uid], 2), "currency": "USD", "created_at": _ago(days=120),
+        }, actor=uid)
         return wid
 
     wallet_ids: dict[str, str] = {}
 
     def wtx(uid, tx_type, amount, ref, note, days_ago):
-        db.execute(
-            "INSERT INTO wallet_transactions (id,wallet_id,user_id,type,amount,available_after,blocked_after,ref,note,created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (_id("wtx"), wallet_ids[uid], uid, tx_type, amount, round(avail[uid], 2), round(blocked[uid], 2),
-             ref, note, _ago(days=days_ago)),
-        )
+        db.op_insert("wallet_txn", {
+            "id": _id("wtx"), "wallet_id": wallet_ids[uid], "user_id": uid, "type": tx_type,
+            "amount": amount, "available_after": round(avail[uid], 2), "blocked_after": round(blocked[uid], 2),
+            "ref": ref, "note": note, "created_at": _ago(days=days_ago),
+        }, actor=uid, amount_cents=round(amount * 100))
 
     def add_card(uid, brand, last4, exp_m, exp_y, holder, default):
-        db.execute(
-            "INSERT INTO payment_methods (id,user_id,brand,last4,exp_month,exp_year,holder_name,is_default,created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
-            (_id("pm"), uid, brand, last4, exp_m, exp_y, holder, default, _ago(days=100)),
-        )
+        db.op_insert("payment_method", {
+            "id": _id("pm"), "user_id": uid, "brand": brand, "last4": last4, "exp_month": exp_m,
+            "exp_year": exp_y, "holder_name": holder, "is_default": default, "created_at": _ago(days=100),
+        }, actor=uid)
 
     # Seed client deposits (available balances) before blocking escrow.
     client_deposits = {cl_apex: 60000, cl_nova: 40000, cl_north: 90000, cl_helix: 35000, cl_vertex: 75000, cl_infytech: 50000}
@@ -485,20 +483,20 @@ def _build() -> None:
     def add_engagement(job_id, client_id, contributor_id, title, rate, weeks, days_ago):
         eid = _id("eng")
         total_hours = 0
-        db.execute(
-            "INSERT INTO engagements (id,job_id,client_id,contributor_id,title,hourly_rate,hours_logged,status,started_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
-            (eid, job_id, client_id, contributor_id, title, rate, 0, "active", _ago(days=days_ago)),
-        )
+        db.op_insert("engagement", {
+            "id": eid, "job_id": job_id, "client_id": client_id, "contributor_id": contributor_id,
+            "title": title, "hourly_rate": rate, "hours_logged": 0, "status": "active",
+            "started_at": _ago(days=days_ago), "created_at": _ago(days=days_ago),
+        }, actor=contributor_id, counter=client_id, job=job_id)
         _audit(client_id, names[client_id], "engagement.create", "engagement", eid,
                {"contributor_id": contributor_id, "rate": rate}, _ago(days=days_ago))
         for i, (hrs, note) in enumerate(weeks):
-            db.execute(
-                "INSERT INTO timesheets (id,engagement_id,week,hours,note,created_at) VALUES (?,?,?,?,?,?)",
-                (_id("ts"), eid, f"Week {i + 1}", hrs, note, _ago(days=days_ago - (i + 1) * 7)),
-            )
+            db.op_insert("timesheet", {
+                "id": _id("ts"), "engagement_id": eid, "week": f"Week {i + 1}", "hours": hrs,
+                "note": note, "created_at": _ago(days=days_ago - (i + 1) * 7),
+            })
             total_hours += hrs
-        db.execute("UPDATE engagements SET hours_logged = ? WHERE id = ?", (total_hours, eid))
+        db.op_update(eid, {"hours_logged": total_hours})
         return eid, total_hours
 
     def fund_escrow(eid, client_id, contributor_id, rate, hours, status, days_ago):
@@ -507,21 +505,22 @@ def _build() -> None:
         avail[client_id] -= amount
         blocked[client_id] += amount
         hid = _id("esc")
-        db.execute(
-            "INSERT INTO escrow_holds (id,engagement_id,client_id,contributor_id,amount_usd,hours,status,created_at,released_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
-            (hid, eid, client_id, contributor_id, amount, hours, "held" if status == "in_escrow" else "released",
-             _ago(days=days_ago), None if status == "in_escrow" else _ago(days=max(days_ago - 3, 0))),
-        )
+        db.op_insert("escrow_hold", {
+            "id": hid, "engagement_id": eid, "client_id": client_id, "contributor_id": contributor_id,
+            "amount_usd": amount, "hours": hours,
+            "status": "held" if status == "in_escrow" else "released",
+            "created_at": _ago(days=days_ago),
+            "released_at": None if status == "in_escrow" else _ago(days=max(days_ago - 3, 0)),
+        }, actor=contributor_id, counter=client_id, amount_cents=round(amount * 100))
         pid = _id("pay")
-        db.execute(
-            "INSERT INTO payments (id,engagement_id,client_id,contributor_id,amount_usd,type,status,hours,gateway_ref,note,created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (pid, eid, client_id, contributor_id, amount,
-             "released" if status == "completed" else "escrow_funded",
-             "completed" if status == "completed" else "in_escrow",
-             hours, hid, f"Escrow — {hours}h", _ago(days=days_ago)),
-        )
+        db.op_insert("payment", {
+            "id": pid, "engagement_id": eid, "client_id": client_id, "contributor_id": contributor_id,
+            "amount_usd": amount,
+            "type": "released" if status == "completed" else "escrow_funded",
+            "status": "completed" if status == "completed" else "in_escrow",
+            "hours": hours, "gateway_ref": hid, "note": f"Escrow — {hours}h",
+            "created_at": _ago(days=days_ago),
+        }, actor=contributor_id, counter=client_id, amount_cents=round(amount * 100))
         return hid, pid, amount
 
     # Engagement 1: Northlane hires Sam (DevOps) — one released + one in escrow.
@@ -558,10 +557,12 @@ def _build() -> None:
 
     # Persist final balances.
     for uid in avail:
-        db.execute(
-            "UPDATE wallets SET available_balance = ?, blocked_balance = ? WHERE user_id = ?",
-            (round(avail[uid], 2), round(blocked[uid], 2), uid),
-        )
+        w = db.op_one("wallet", user_id=uid)
+        if w:
+            db.op_update(w["id"], {
+                "available_balance": round(avail[uid], 2),
+                "blocked_balance": round(blocked[uid], 2),
+            })
 
     # Wallet transactions (representative history).
     wtx(cl_north, "deposit", 90000, "ch_seed_north", "Visa •••• 4242 deposit", 30)

@@ -1,332 +1,353 @@
 """
-SQLite persistence layer for SmartEscrow.
+PostgreSQL (Neon) persistence layer for the SmartEscrow marketplace.
 
-Uses Python's built-in sqlite3 (zero extra dependencies). A single file-backed
-database gives real persistence across requests and restarts, while remaining
-100% free and runnable locally on a Mac or on free-tier hosting. Every mutation
-in the marketplace is recorded in the audit_log table for full traceability.
+The entire marketplace is stored in just TWO physical tables:
+
+  * users       -> identity, auth and profile for freelancers AND employers.
+  * operations  -> every operational record (job postings, applications,
+                   engagements, timesheets, wallets, wallet transactions,
+                   payment methods, payments, escrow holds and activity),
+                   discriminated by the `type` column with a JSONB `data`
+                   document holding the record's fields.
+
+This module exposes a small document-style repository API (user_* and op_*)
+that the business logic in store.py / seed.py build on, so the two-table
+shape is invisible to the rest of the app.
+
+Connection string comes from DATABASE_URL (Neon in production, a local
+PostgreSQL in development). Works with psycopg 3.
 """
 from __future__ import annotations
 
 import json
 import os
-import sqlite3
 import threading
+from datetime import datetime, timezone
 
-# Database file lives next to the backend app (override with SMARTESCROW_DB_PATH).
-_DEFAULT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "smartescrow.db")
-DB_PATH = os.environ.get("SMARTESCROW_DB_PATH", _DEFAULT_PATH)
+import psycopg
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
+from app.core.config import settings
+
+# --------------------------------------------------------------------------- #
+# Connection
+# --------------------------------------------------------------------------- #
 _lock = threading.RLock()
-_conn: sqlite3.Connection | None = None
+_conn: psycopg.Connection | None = None
 
 
+def _dsn() -> str:
+    """Resolve + normalise the connection string for psycopg."""
+    raw = os.environ.get("DATABASE_URL") or settings.DATABASE_URL
+    # psycopg speaks plain libpq URLs — strip any SQLAlchemy driver suffix.
+    for suffix in ("+asyncpg", "+psycopg", "+psycopg2", "+pg8000"):
+        raw = raw.replace(suffix, "")
+    return raw
+
+
+# Two-table schema. Flags are stored as SMALLINT (0/1) to mirror the app's
+# existing integer-flag semantics exactly.
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    username TEXT UNIQUE,
-    phone TEXT,
-    password_hash TEXT NOT NULL,
-    full_name TEXT NOT NULL,
-    role TEXT NOT NULL,
-    active_mode TEXT DEFAULT 'freelancer',
-    is_freelancer INTEGER DEFAULT 0,
-    is_employer INTEGER DEFAULT 0,
-    firm_verified INTEGER DEFAULT 0,
-    firm_reg_number TEXT,
-    firm_work_email TEXT,
-    resume_text TEXT,
-    resume_url TEXT,
-    resume_filename TEXT,
-    resume_updated_at TEXT,
-    email_verified INTEGER DEFAULT 1,
-    phone_verified INTEGER DEFAULT 1,
-    title TEXT,
-    headline TEXT,
-    bio TEXT,
-    location TEXT,
-    country_code TEXT,
-    hourly_rate_usd REAL,
-    years_experience INTEGER,
-    availability TEXT,
-    github_username TEXT,
-    company_name TEXT,
-    company_size TEXT,
-    industry TEXT,
-    website TEXT,
-    rating REAL DEFAULT 0,
-    completed_jobs INTEGER DEFAULT 0,
-    jobs_posted INTEGER DEFAULT 0,
-    avatar_hue INTEGER DEFAULT 210,
-    skills TEXT DEFAULT '[]',
-    services TEXT DEFAULT '[]',
-    experiences TEXT DEFAULT '[]',
-    achievements TEXT DEFAULT '[]',
-    portfolio TEXT DEFAULT '[]',
-    languages TEXT DEFAULT '[]',
-    created_at TEXT NOT NULL
+    id              TEXT PRIMARY KEY,
+    email           TEXT UNIQUE NOT NULL,
+    username        TEXT UNIQUE,
+    phone           TEXT,
+    password_hash   TEXT NOT NULL,
+    full_name       TEXT NOT NULL,
+    role            TEXT NOT NULL DEFAULT 'contributor',
+    active_mode     TEXT NOT NULL DEFAULT 'freelancer',
+    is_freelancer   SMALLINT NOT NULL DEFAULT 1,
+    is_employer     SMALLINT NOT NULL DEFAULT 0,
+    firm_verified   SMALLINT NOT NULL DEFAULT 0,
+    email_verified  SMALLINT NOT NULL DEFAULT 0,
+    phone_verified  SMALLINT NOT NULL DEFAULT 0,
+    profile         JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-CREATE TABLE IF NOT EXISTS jobs (
-    id TEXT PRIMARY KEY,
-    client_id TEXT NOT NULL,
-    company_name TEXT,
-    title TEXT NOT NULL,
-    category TEXT,
-    description TEXT,
-    skills_required TEXT DEFAULT '[]',
-    engagement_type TEXT DEFAULT 'hourly',
-    hourly_rate_min INTEGER,
-    hourly_rate_max INTEGER,
-    experience_level TEXT,
-    location TEXT,
-    hours_per_week INTEGER,
-    duration TEXT,
-    status TEXT DEFAULT 'open',
-    ai TEXT DEFAULT '{}',
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS applications (
-    id TEXT PRIMARY KEY,
-    job_id TEXT NOT NULL,
-    contributor_id TEXT NOT NULL,
-    proposed_hourly_rate INTEGER,
-    status TEXT DEFAULT 'submitted',
-    cover_letter TEXT,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS engagements (
-    id TEXT PRIMARY KEY,
-    job_id TEXT NOT NULL,
-    client_id TEXT NOT NULL,
-    contributor_id TEXT NOT NULL,
-    title TEXT,
-    hourly_rate INTEGER,
-    hours_logged INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'active',
-    started_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS timesheets (
-    id TEXT PRIMARY KEY,
-    engagement_id TEXT NOT NULL,
-    week TEXT,
-    hours INTEGER,
-    note TEXT,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS wallets (
-    id TEXT PRIMARY KEY,
-    user_id TEXT UNIQUE NOT NULL,
-    available_balance REAL DEFAULT 0,
-    blocked_balance REAL DEFAULT 0,
-    currency TEXT DEFAULT 'USD',
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS wallet_transactions (
-    id TEXT PRIMARY KEY,
-    wallet_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    type TEXT NOT NULL,
-    amount REAL NOT NULL,
-    available_after REAL,
-    blocked_after REAL,
-    ref TEXT,
-    note TEXT,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS payment_methods (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    brand TEXT,
-    last4 TEXT,
-    exp_month INTEGER,
-    exp_year INTEGER,
-    holder_name TEXT,
-    is_default INTEGER DEFAULT 0,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS payments (
-    id TEXT PRIMARY KEY,
-    engagement_id TEXT,
-    client_id TEXT NOT NULL,
-    contributor_id TEXT NOT NULL,
-    amount_usd REAL NOT NULL,
-    type TEXT NOT NULL,
-    status TEXT NOT NULL,
-    hours INTEGER DEFAULT 0,
-    gateway_ref TEXT,
-    note TEXT,
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS escrow_holds (
-    id TEXT PRIMARY KEY,
-    engagement_id TEXT NOT NULL,
-    client_id TEXT NOT NULL,
-    contributor_id TEXT NOT NULL,
-    amount_usd REAL NOT NULL,
-    hours INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'held',
-    created_at TEXT NOT NULL,
-    released_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS audit_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    actor_id TEXT,
-    actor_name TEXT,
-    action TEXT NOT NULL,
-    entity_type TEXT,
-    entity_id TEXT,
-    detail TEXT,
-    created_at TEXT NOT NULL
-);
+CREATE INDEX IF NOT EXISTS idx_users_role          ON users (role);
+CREATE INDEX IF NOT EXISTS idx_users_active_mode   ON users (active_mode);
+CREATE INDEX IF NOT EXISTS idx_users_is_freelancer ON users (is_freelancer);
+CREATE INDEX IF NOT EXISTS idx_users_is_employer   ON users (is_employer);
+CREATE INDEX IF NOT EXISTS idx_users_profile_gin   ON users USING GIN (profile);
 
 CREATE TABLE IF NOT EXISTS operations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT,
-    user_name TEXT,
-    action TEXT NOT NULL,
-    category TEXT,
-    entity_type TEXT,
-    entity_id TEXT,
-    details TEXT,
-    created_at TEXT NOT NULL
+    id                   TEXT PRIMARY KEY,
+    type                 TEXT NOT NULL,
+    status               TEXT,
+    actor_user_id        TEXT,
+    counterparty_user_id TEXT,
+    job_id               TEXT,
+    amount_cents         BIGINT,
+    currency             TEXT NOT NULL DEFAULT 'USD',
+    data                 JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-CREATE TABLE IF NOT EXISTS pending_registrations (
-    id TEXT PRIMARY KEY,
-    username TEXT,
-    email TEXT,
-    phone TEXT,
-    password_hash TEXT,
-    full_name TEXT,
-    role TEXT,
-    title TEXT,
-    hourly_rate_usd REAL,
-    company_name TEXT,
-    skills TEXT DEFAULT '[]',
-    location TEXT,
-    email_otp TEXT,
-    phone_otp TEXT,
-    email_verified INTEGER DEFAULT 0,
-    phone_verified INTEGER DEFAULT 0,
-    attempts INTEGER DEFAULT 0,
-    created_at TEXT NOT NULL,
-    expires_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS meta (
-    key TEXT PRIMARY KEY,
-    value TEXT
-);
+CREATE INDEX IF NOT EXISTS idx_ops_type         ON operations (type);
+CREATE INDEX IF NOT EXISTS idx_ops_status       ON operations (status);
+CREATE INDEX IF NOT EXISTS idx_ops_actor        ON operations (actor_user_id);
+CREATE INDEX IF NOT EXISTS idx_ops_counterparty ON operations (counterparty_user_id);
+CREATE INDEX IF NOT EXISTS idx_ops_job          ON operations (job_id);
+CREATE INDEX IF NOT EXISTS idx_ops_type_status  ON operations (type, status);
+CREATE INDEX IF NOT EXISTS idx_ops_data_gin     ON operations USING GIN (data);
 """
 
 
-# Columns added after the initial release — applied idempotently on startup so
-# existing databases pick up new fields without a destructive reset.
-_MIGRATIONS = {
-    "users": {
-        "username": "TEXT",
-        "phone": "TEXT",
-        "email_verified": "INTEGER DEFAULT 1",
-        "phone_verified": "INTEGER DEFAULT 1",
-        "active_mode": "TEXT DEFAULT 'freelancer'",
-        "is_freelancer": "INTEGER DEFAULT 0",
-        "is_employer": "INTEGER DEFAULT 0",
-        "firm_verified": "INTEGER DEFAULT 0",
-        "firm_reg_number": "TEXT",
-        "firm_work_email": "TEXT",
-        "resume_text": "TEXT",
-        "resume_url": "TEXT",
-        "resume_filename": "TEXT",
-        "resume_updated_at": "TEXT",
-    },
-}
+def _connect() -> psycopg.Connection:
+    conn = psycopg.connect(_dsn(), autocommit=True, row_factory=dict_row)
+    return conn
 
 
-def _migrate(conn) -> None:
-    for table, columns in _MIGRATIONS.items():
-        existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
-        for col, decl in columns.items():
-            if col not in existing:
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
-    conn.commit()
-
-
-def get_conn() -> sqlite3.Connection:
+def get_conn() -> psycopg.Connection:
     global _conn
-    if _conn is None:
-        with _lock:
-            if _conn is None:
-                _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-                _conn.row_factory = sqlite3.Row
-                _conn.execute("PRAGMA journal_mode=WAL;")
-                _conn.execute("PRAGMA foreign_keys=ON;")
-                _conn.executescript(SCHEMA)
-                _migrate(_conn)
-                _conn.commit()
-    return _conn
+    with _lock:
+        if _conn is None or _conn.closed:
+            _conn = _connect()
+            with _conn.cursor() as cur:
+                cur.execute(SCHEMA)
+        else:
+            # Cheap liveness check; reconnect if the server dropped us (Neon idle).
+            try:
+                with _conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+            except psycopg.Error:
+                try:
+                    _conn.close()
+                except psycopg.Error:
+                    pass
+                _conn = _connect()
+                with _conn.cursor() as cur:
+                    cur.execute(SCHEMA)
+        return _conn
 
 
-def execute(sql: str, params: tuple = ()) -> sqlite3.Cursor:
+def _run(sql: str, params: tuple = (), *, fetch: str | None = None):
     with _lock:
         conn = get_conn()
-        cur = conn.execute(sql, params)
-        conn.commit()
-        return cur
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            if fetch == "one":
+                return cur.fetchone()
+            if fetch == "all":
+                return cur.fetchall()
+            return None
 
 
-def query_all(sql: str, params: tuple = ()) -> list[sqlite3.Row]:
-    with _lock:
-        conn = get_conn()
-        return conn.execute(sql, params).fetchall()
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def query_one(sql: str, params: tuple = ()) -> sqlite3.Row | None:
-    with _lock:
-        conn = get_conn()
-        return conn.execute(sql, params).fetchone()
-
-
-def dumps(value) -> str:
-    return json.dumps(value or [])
+# --------------------------------------------------------------------------- #
+# JSON helpers (kept for backward-compatible callers)
+# --------------------------------------------------------------------------- #
+def dumps(value):
+    return json.dumps(value if value is not None else [])
 
 
 def loads(value, default=None):
     if value is None or value == "":
         return default if default is not None else []
+    if isinstance(value, (list, dict)):
+        return value
     try:
         return json.loads(value)
     except (json.JSONDecodeError, TypeError):
         return default if default is not None else []
 
 
+# --------------------------------------------------------------------------- #
+# Users repository
+# --------------------------------------------------------------------------- #
+_USER_CORE = (
+    "id", "email", "username", "phone", "password_hash", "full_name", "role",
+    "active_mode", "is_freelancer", "is_employer", "firm_verified",
+    "email_verified", "phone_verified", "created_at",
+)
+_USER_FLAGS = ("is_freelancer", "is_employer", "firm_verified", "email_verified", "phone_verified")
+
+
+def _split_user(record: dict) -> tuple[dict, dict]:
+    core = {k: record[k] for k in _USER_CORE if k in record}
+    profile = {k: v for k, v in record.items() if k not in _USER_CORE}
+    for f in _USER_FLAGS:
+        if f in core and core[f] is not None:
+            core[f] = int(core[f])
+    return core, profile
+
+
+def _user_row_to_record(row) -> dict | None:
+    if row is None:
+        return None
+    profile = row.get("profile") or {}
+    rec = {k: row[k] for k in _USER_CORE if k in row}
+    for f in _USER_FLAGS:
+        if f in rec and rec[f] is not None:
+            rec[f] = int(rec[f])
+    created = rec.get("created_at")
+    if isinstance(created, datetime):
+        rec["created_at"] = created.isoformat(timespec="seconds")
+    rec.update(profile)
+    return rec
+
+
+def user_insert(record: dict) -> None:
+    core, profile = _split_user(record)
+    core.setdefault("created_at", _now())
+    cols = list(core.keys()) + ["profile"]
+    placeholders = ", ".join(["%s"] * len(cols))
+    params = [core[k] for k in core] + [Jsonb(profile)]
+    _run(
+        f"INSERT INTO users ({', '.join(cols)}) VALUES ({placeholders})",
+        tuple(params),
+    )
+
+
+def user_get(user_id: str) -> dict | None:
+    row = _run("SELECT * FROM users WHERE id = %s", (user_id,), fetch="one")
+    return _user_row_to_record(row)
+
+
+def user_find(**equals) -> dict | None:
+    if not equals:
+        return None
+    clause = " AND ".join(f"{k} = %s" for k in equals)
+    row = _run(f"SELECT * FROM users WHERE {clause} LIMIT 1", tuple(equals.values()), fetch="one")
+    return _user_row_to_record(row)
+
+
+def user_all() -> list[dict]:
+    rows = _run("SELECT * FROM users", fetch="all") or []
+    return [_user_row_to_record(r) for r in rows]
+
+
+def user_update(user_id: str, changes: dict) -> None:
+    core, profile = _split_user({k: v for k, v in changes.items() if k != "id"})
+    sets, params = [], []
+    for k, v in core.items():
+        sets.append(f"{k} = %s")
+        params.append(v)
+    if profile:
+        sets.append("profile = profile || %s::jsonb")
+        params.append(Jsonb(profile))
+    if not sets:
+        return
+    params.append(user_id)
+    _run(f"UPDATE users SET {', '.join(sets)} WHERE id = %s", tuple(params))
+
+
+# --------------------------------------------------------------------------- #
+# Operations repository (jobs, applications, engagements, payments, ...)
+# --------------------------------------------------------------------------- #
+def _op_row_to_record(row) -> dict | None:
+    if row is None:
+        return None
+    rec = dict(row.get("data") or {})
+    rec["id"] = row["id"]
+    created = row.get("created_at")
+    if created is not None and "created_at" not in rec:
+        rec["created_at"] = created.isoformat(timespec="seconds") if isinstance(created, datetime) else created
+    if "status" not in rec and row.get("status") is not None:
+        rec["status"] = row["status"]
+    return rec
+
+
+def op_insert(op_type: str, record: dict, *, actor: str | None = None,
+              counter: str | None = None, job: str | None = None,
+              amount_cents: int | None = None, currency: str = "USD") -> dict:
+    rec = dict(record)
+    op_id = rec["id"]
+    rec.setdefault("created_at", _now())
+    data = {k: v for k, v in rec.items() if k != "id"}
+    _run(
+        """INSERT INTO operations
+           (id, type, status, actor_user_id, counterparty_user_id, job_id, amount_cents, currency, data, created_at)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+        (op_id, op_type, rec.get("status"), actor, counter, job, amount_cents, currency,
+         Jsonb(data), rec.get("created_at")),
+    )
+    return op_get(op_id)
+
+
+def op_get(op_id: str) -> dict | None:
+    row = _run("SELECT * FROM operations WHERE id = %s", (op_id,), fetch="one")
+    return _op_row_to_record(row)
+
+
+def op_all(op_type: str) -> list[dict]:
+    rows = _run(
+        "SELECT * FROM operations WHERE type = %s ORDER BY created_at DESC, id DESC",
+        (op_type,), fetch="all",
+    ) or []
+    return [_op_row_to_record(r) for r in rows]
+
+
+def op_find(op_type: str, **equals) -> list[dict]:
+    recs = op_all(op_type)
+    if not equals:
+        return recs
+    return [r for r in recs if all(r.get(k) == v for k, v in equals.items())]
+
+
+def op_one(op_type: str, **equals) -> dict | None:
+    found = op_find(op_type, **equals)
+    return found[0] if found else None
+
+
+def op_count(op_type: str, **equals) -> int:
+    return len(op_find(op_type, **equals))
+
+
+def op_update(op_id: str, changes: dict, *, actor: str | None = None,
+              counter: str | None = None, amount_cents: int | None = None) -> dict | None:
+    merge = {k: v for k, v in changes.items() if k != "id"}
+    sets = ["data = data || %s::jsonb"]
+    params: list = [Jsonb(merge)]
+    if "status" in merge:
+        sets.append("status = %s")
+        params.append(merge["status"])
+    if actor is not None:
+        sets.append("actor_user_id = %s")
+        params.append(actor)
+    if counter is not None:
+        sets.append("counterparty_user_id = %s")
+        params.append(counter)
+    if amount_cents is not None:
+        sets.append("amount_cents = %s")
+        params.append(amount_cents)
+    params.append(op_id)
+    _run(f"UPDATE operations SET {', '.join(sets)} WHERE id = %s", tuple(params))
+    return op_get(op_id)
+
+
+def op_delete(op_id: str) -> None:
+    _run("DELETE FROM operations WHERE id = %s", (op_id,))
+
+
+def op_delete_where(op_type: str, **equals) -> None:
+    for r in op_find(op_type, **equals):
+        op_delete(r["id"])
+
+
+# --------------------------------------------------------------------------- #
+# Seed flag + reset (stored as a tiny meta operation)
+# --------------------------------------------------------------------------- #
+_SEED_ID = "meta_seeded"
+
+
 def is_seeded() -> bool:
-    row = query_one("SELECT value FROM meta WHERE key = 'seeded'")
-    return bool(row and row["value"] == "1")
+    row = _run("SELECT id FROM operations WHERE id = %s", (_SEED_ID,), fetch="one")
+    return row is not None
 
 
 def mark_seeded() -> None:
-    execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('seeded', '1')")
+    _run(
+        "INSERT INTO operations (id, type, data, created_at) VALUES (%s, 'meta', %s, %s) "
+        "ON CONFLICT (id) DO NOTHING",
+        (_SEED_ID, Jsonb({"value": "1"}), _now()),
+    )
 
 
 def reset() -> None:
-    """Drop all data (used for re-seeding in dev)."""
-    with _lock:
-        conn = get_conn()
-        for table in (
-            "users", "jobs", "applications", "engagements", "timesheets",
-            "wallets", "wallet_transactions", "payment_methods", "payments",
-            "escrow_holds", "audit_log", "operations", "pending_registrations", "meta",
-        ):
-            conn.execute(f"DELETE FROM {table}")
-        conn.commit()
+    """Drop all marketplace data (used for re-seeding in dev)."""
+    _run("TRUNCATE users, operations")
