@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { SiteHeader } from '@/components/site-header';
 import { Avatar, StatusPill, MatchBadge, SkillChips, EmptyState } from '@/components/ui';
@@ -11,6 +12,19 @@ import { FirmRegisterModal } from '@/components/firm-register-modal';
 import { api, formatUSD, timeAgo } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import type { Application, Engagement, Job, Payment, PlatformStats, ResumeAnalysis, User, Wallet } from '@/lib/types';
+
+// 3D contract-lifecycle visualizer (WebGL — client only, no SSR).
+const LifecycleVisualizer = dynamic(
+  () => import('@/components/lifecycle/lifecycle-visualizer').then((m) => m.LifecycleVisualizer),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[360px] items-center justify-center rounded-2xl border border-ink/10 bg-coal">
+        <span className="font-mono text-sm text-paper/60">Loading 3D scene…</span>
+      </div>
+    ),
+  },
+);
 
 interface DashboardData {
   user: User;
@@ -179,6 +193,9 @@ function Overview({
   const pendingApps = data.applications.filter((a) => ['submitted', 'shortlisted', 'interview', 'offer'].includes(a.status)).length;
   const activeEng = data.engagements.filter((e) => e.status === 'active').length;
 
+  // Reflect the account's real position in the escrow lifecycle in the 3D scene.
+  const lifecycleStage = totalBilled > 0 ? 3 : inEscrow > 0 ? 2 : activeEng > 0 ? 1 : 0;
+
   const actions = isClient
     ? [
         { tag: 'Hire', title: 'Post a new role', body: 'Describe a job and let AI summarize it for applicants.', href: '/jobs/new' },
@@ -325,6 +342,21 @@ function Overview({
           </div>
         </div>
       )}
+
+      <div className="mt-10">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="mono-label text-accent">Contract Lifecycle</div>
+            <h2 className="display mt-3 text-2xl">Where your escrow stands</h2>
+          </div>
+          <Link href="/lifecycle" className="hidden font-mono text-xs text-navy hover:underline dark:text-sky-300 sm:block">
+            Explore →
+          </Link>
+        </div>
+        <div className="mt-6">
+          <LifecycleVisualizer activeStage={lifecycleStage} height={360} />
+        </div>
+      </div>
     </div>
   );
 }

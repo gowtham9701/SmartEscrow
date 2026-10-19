@@ -11,6 +11,7 @@ import { FirmRegisterModal } from '@/components/firm-register-modal';
 const NAV = [
   { href: '/jobs', label: 'Find Work' },
   { href: '/talent', label: 'Find Talent' },
+  { href: '/lifecycle', label: 'Lifecycle' },
   { href: '/how-it-works', label: 'How It Works' },
   { href: '/about', label: 'About' },
 ];

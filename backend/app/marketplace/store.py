@@ -124,7 +124,7 @@ def public_user(u: dict) -> dict:
     return {k: v for k, v in u.items() if k != "password_hash"}
 
 
-def _row_to_job(rec) -> dict | None:
+def _row_to_job(rec, applicant_count: int | None = None) -> dict | None:
     if rec is None:
         return None
     j = dict(rec)
@@ -132,7 +132,7 @@ def _row_to_job(rec) -> dict | None:
     j["skills_required"] = sk if isinstance(sk, list) else []
     aijson = j.get("ai")
     j["ai"] = aijson if isinstance(aijson, dict) else {}
-    j["applicant_count"] = db.op_count("application", job_id=j["id"])
+    j["applicant_count"] = applicant_count if applicant_count is not None else db.op_count("application", job_id=j["id"])
     return j
 
 
@@ -487,7 +487,8 @@ def resume_insights(user_id: str) -> dict:
 # Jobs
 # --------------------------------------------------------------------------- #
 def list_jobs(search: str = "", category: str = "", skill: str = "") -> list[dict]:
-    jobs = [_row_to_job(r) for r in db.op_find("job", status="open")]
+    counts = db.op_count_by_job("application")
+    jobs = [_row_to_job(r, counts.get(r["id"], 0)) for r in db.op_find("job", status="open")]
     if search:
         s = search.lower()
         jobs = [j for j in jobs if s in j["title"].lower() or s in (j["description"] or "").lower()
@@ -508,7 +509,8 @@ def enrich_job(j: dict) -> dict:
 
 
 def list_jobs_for_client(client_id: str) -> list[dict]:
-    return [_row_to_job(r) for r in db.op_find("job", client_id=client_id)]
+    counts = db.op_count_by_job("application")
+    return [_row_to_job(r, counts.get(r["id"], 0)) for r in db.op_find("job", client_id=client_id)]
 
 
 def create_job(client_id: str, payload: dict) -> dict:
@@ -934,6 +936,51 @@ def _enrich_payment(rec) -> dict:
 def payments_for_user(user_id: str, role: str) -> list[dict]:
     key = "client_id" if role == "client" else "contributor_id"
     return [_enrich_payment(r) for r in db.op_find("payment", **{key: user_id})]
+
+
+# --------------------------------------------------------------------------- #
+# Simulated payment-gateway webhook (idempotent)
+# --------------------------------------------------------------------------- #
+def process_payment_webhook(event: str, data: dict) -> dict:
+    """Handle a callback from the simulated USD gateway.
+
+    Supported events:
+      * charge.succeeded  -> credit the client's wallet (dummy card checkout).
+      * escrow.release    -> release a funded escrow payment to the contributor.
+
+    Idempotent: a given gateway reference is processed at most once, so retried
+    webhook deliveries are safe.
+    """
+    ref = data.get("gateway_ref") or data.get("payment_id") or ""
+    if ref and db.op_one("webhook_event", ref=ref):
+        return {"status": "already_processed", "ref": ref, "event": event}
+
+    if event == "charge.succeeded":
+        uid = data.get("user_id")
+        amount = float(data.get("amount") or 0)
+        if not uid or amount <= 0:
+            raise ValueError("charge.succeeded requires user_id and a positive amount.")
+        if not get_user(uid):
+            raise ValueError("Unknown user_id.")
+        gw = data.get("gateway_ref") or _id("ch")
+        note = f"{data.get('brand', 'Card')} •••• {data.get('card_last4', '****')} deposit"
+        wallet = deposit_to_wallet(uid, amount, gw, note)
+        result = {"status": "processed", "event": event, "wallet": wallet}
+    elif event == "escrow.release":
+        pid = data.get("payment_id")
+        if not pid:
+            raise ValueError("escrow.release requires a payment_id.")
+        payment = release_payment(pid)
+        result = {"status": "processed", "event": event, "payment": payment}
+    else:
+        result = {"status": "ignored", "event": event}
+
+    if ref and result["status"] == "processed":
+        db.op_insert("webhook_event", {
+            "id": _id("whk"), "ref": ref, "event": event, "created_at": _now(),
+        }, actor=data.get("user_id"))
+    audit(data.get("user_id"), "gateway.webhook", "webhook_event", ref, {"event": event})
+    return result
 
 
 # --------------------------------------------------------------------------- #

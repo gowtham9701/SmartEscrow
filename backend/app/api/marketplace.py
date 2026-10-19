@@ -7,11 +7,15 @@ payment tracking, and AI summaries/recommendations.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile, status
 from pydantic import BaseModel, EmailStr, Field
 
+from app.core.config import settings
 from app.marketplace import ai, resume_parser, store
 
 router = APIRouter(prefix="/market", tags=["marketplace"])
@@ -529,4 +533,35 @@ def fund_escrow(engagement_id: str, payload: FundEscrowRequest, user: dict = Dep
 @router.get("/audit")
 def audit(user: dict = Depends(get_current_user)):
     return {"events": store.audit_for_user(user["id"])}
+
+
+@router.post("/webhooks/payment")
+async def payment_webhook(request: Request, x_signature: str = Header(default="")):
+    """Simulated payment-gateway webhook listener.
+
+    Verifies an HMAC-SHA256 signature (header `X-Signature: sha256=<hex>`) of the
+    raw body using `PAYMENT_WEBHOOK_SECRET`, then processes the event. Idempotent
+    on the gateway reference so retried deliveries are safe.
+
+    Example body:
+      {"event": "charge.succeeded",
+       "data": {"user_id": "usr_...", "amount": 500, "gateway_ref": "ch_abc",
+                "brand": "Visa", "card_last4": "4242"}}
+    """
+    raw = await request.body()
+    secret = settings.PAYMENT_WEBHOOK_SECRET
+    if secret:
+        expected = "sha256=" + hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, x_signature):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    try:
+        body = json.loads(raw or b"{}")
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    event = body.get("event", "")
+    data = body.get("data", body)
+    try:
+        return store.process_payment_webhook(event, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 

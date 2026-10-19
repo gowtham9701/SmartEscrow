@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     RAZORPAY_WEBHOOK_SECRET: str = "whsec_placeholder"
     PAYMENT_CURRENCY: str = "INR"
 
+    # Shared secret for the simulated payment-gateway webhook (HMAC-SHA256).
+    # Leave blank to accept unsigned webhooks (demo only).
+    PAYMENT_WEBHOOK_SECRET: str = "whsec_smartescrow_demo"
+
     # Zero-cost local prototype uses the mock provider by default.
     # Switch to a sandbox provider later if you want simulated external payments.
     PAYMENT_PROVIDER: str = "mock"

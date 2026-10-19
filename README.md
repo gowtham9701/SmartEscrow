@@ -103,3 +103,46 @@ The backend uses:
 
 SmartEscrow is designed around SaaS subscriptions, premium vetting reports, and low transaction friction instead of traditional percentage-heavy marketplace commissions.
 
+
+## Mock payment test data (simulated gateway)
+
+SmartEscrow ships with a **simulated USD card gateway** — no real money moves.
+Use the dummy cards below to fund a wallet, create escrow, and exercise the full
+checkout → webhook → release flow. Any **future** expiry date works; CVV is any
+3 digits (4 for Amex). Card PIN is any 4 digits **except `0000`** (which
+simulates a bank decline).
+
+### Successful cards
+
+| Brand       | Card Number         | Expiry | CVV  | Result     |
+|-------------|---------------------|--------|------|------------|
+| Visa        | 4242 4242 4242 4242 | 12/30  | 123  | Success    |
+| Visa        | 4000 0566 5566 5556 | 04/29  | 123  | Success    |
+| Mastercard  | 5555 5555 5555 4444 | 11/28  | 123  | Success    |
+| Mastercard  | 5200 8282 8282 8210 | 03/30  | 123  | Success    |
+| Amex        | 3782 822463 10005   | 09/28  | 1234 | Success    |
+
+### Failure / edge-case cards
+
+| Brand       | Card Number         | Expiry | CVV  | Result               |
+|-------------|---------------------|--------|------|----------------------|
+| Visa        | 4000 0000 0000 0002 | 12/30  | 123  | Declined             |
+| Visa        | 4000 0000 0000 9995 | 12/30  | 123  | Insufficient funds   |
+| (any above) | —                   | —      | —    | PIN `0000` → declined |
+
+> These are standard, publicly documented **test** card numbers (Luhn-valid,
+> non-chargeable). They are safe to commit and are for local/demo use only.
+
+## Sample resumes
+
+The [`/sample`](./sample) folder contains five distinct elite-engineer resumes
+you can upload on the **Dashboard → Resume** tab to exercise the AI vetting and
+skill-ranking engine:
+
+| File | Profile |
+|------|---------|
+| `ava-chen-staff-fullstack.md`      | Staff full-stack (Python/FastAPI/React) |
+| `diego-morales-ml-llm.md`          | ML / LLM engineer (PyTorch/RAG/Ollama)  |
+| `sam-okafor-devops-sre.md`         | DevOps / SRE (Kubernetes/Terraform/AWS) |
+| `priya-raman-product-designer.md`  | Senior product designer (Figma/UI-UX)   |
+| `lena-kowalski-security-engineer.md` | Application security engineer (STRIDE/pentest) |

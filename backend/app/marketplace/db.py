@@ -99,39 +99,50 @@ def _connect() -> psycopg.Connection:
     return conn
 
 
+def _ensure_schema(conn: psycopg.Connection) -> None:
+    with conn.cursor() as cur:
+        cur.execute(SCHEMA)
+
+
 def get_conn() -> psycopg.Connection:
     global _conn
     with _lock:
         if _conn is None or _conn.closed:
             _conn = _connect()
-            with _conn.cursor() as cur:
-                cur.execute(SCHEMA)
-        else:
-            # Cheap liveness check; reconnect if the server dropped us (Neon idle).
-            try:
-                with _conn.cursor() as cur:
-                    cur.execute("SELECT 1")
-            except psycopg.Error:
-                try:
-                    _conn.close()
-                except psycopg.Error:
-                    pass
-                _conn = _connect()
-                with _conn.cursor() as cur:
-                    cur.execute(SCHEMA)
+            _ensure_schema(_conn)
         return _conn
+
+
+def _reset_conn() -> psycopg.Connection:
+    """Drop and re-open the shared connection (e.g. after a Neon idle drop)."""
+    global _conn
+    if _conn is not None:
+        try:
+            _conn.close()
+        except psycopg.Error:
+            pass
+    _conn = _connect()
+    _ensure_schema(_conn)
+    return _conn
 
 
 def _run(sql: str, params: tuple = (), *, fetch: str | None = None):
     with _lock:
-        conn = get_conn()
-        with conn.cursor() as cur:
-            cur.execute(sql, params)
-            if fetch == "one":
-                return cur.fetchone()
-            if fetch == "all":
-                return cur.fetchall()
-            return None
+        for attempt in (1, 2):
+            conn = get_conn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(sql, params)
+                    if fetch == "one":
+                        return cur.fetchone()
+                    if fetch == "all":
+                        return cur.fetchall()
+                    return None
+            except (psycopg.OperationalError, psycopg.InterfaceError):
+                # Connection likely dropped (Neon idle/restart). Reconnect once.
+                if attempt == 2:
+                    raise
+                _reset_conn()
 
 
 def _now() -> str:
@@ -296,6 +307,16 @@ def op_one(op_type: str, **equals) -> dict | None:
 
 def op_count(op_type: str, **equals) -> int:
     return len(op_find(op_type, **equals))
+
+
+def op_count_by_job(op_type: str) -> dict[str, int]:
+    """Count records of a type grouped by job_id in a single query (avoids N+1)."""
+    rows = _run(
+        "SELECT job_id, count(*) AS n FROM operations "
+        "WHERE type = %s AND job_id IS NOT NULL GROUP BY job_id",
+        (op_type,), fetch="all",
+    ) or []
+    return {r["job_id"]: r["n"] for r in rows}
 
 
 def op_update(op_id: str, changes: dict, *, actor: str | None = None,
