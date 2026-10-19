@@ -2,6 +2,23 @@
 
 SmartEscrow is a local-first platform for hiring and verifying software engineering talent using objective code signals, automated milestone escrow, and peer-led technical dispute resolution.
 
+## 🔗 Live URLs
+
+| Service | URL |
+|---------|-----|
+| **Web App (UI)** | https://smart-escrow-cunv3e7a7-gautams-projects-5965c972.vercel.app |
+| **Backend API** | https://smartescrow.onrender.com · health: https://smartescrow.onrender.com/health · docs: https://smartescrow.onrender.com/docs |
+| **Database (Neon console)** | https://console.neon.tech/app/projects/autumn-tooth-47053286/branches/br-dawn-butterfly-b4lcb8x0 |
+
+> **Notes**
+> - The backend is hosted on Render (free tier) and may take ~30–60s to wake from
+>   sleep on the first request after inactivity.
+> - The database connection string is **secret** and is intentionally **not** listed
+>   here — it lives only in Render's private environment variables.
+> - If the Web App URL shows a Vercel login wall, disable **Settings → Deployment
+>   Protection** in the Vercel project, and use the project's **production** domain
+>   rather than a per-deployment preview URL.
+
 This version is optimized for the Indian market and uses Razorpay as the payment gateway, with fiat settlement in INR instead of USD-only rails.
 
 ## Core purpose
