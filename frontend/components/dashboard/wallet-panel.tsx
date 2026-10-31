@@ -81,6 +81,13 @@ export function WalletPanel() {
             </div>
             <div className="h-10 w-px bg-paper/20" />
             <div>
+              <div className="font-mono text-[10px] uppercase tracking-widest text-paper/50">Staked</div>
+              <div className="mt-1 font-display text-xl font-bold text-sky-300">
+                {formatUSD(wallet.staked_balance || 0)}
+              </div>
+            </div>
+            <div className="h-10 w-px bg-paper/20" />
+            <div>
               <div className="font-mono text-[10px] uppercase tracking-widest text-paper/50">Currency</div>
               <div className="mt-1 font-display text-xl font-bold">{wallet.currency}</div>
             </div>

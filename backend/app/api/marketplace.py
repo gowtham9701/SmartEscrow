@@ -160,6 +160,7 @@ class AddCardRequest(BaseModel):
 
 class FundEscrowRequest(BaseModel):
     hours: int = Field(..., gt=0, le=1000)
+    repo: Optional[str] = None
 
 
 # --------------------------------------------------------------------------- #
@@ -321,6 +322,23 @@ def resume_insights(user: dict = Depends(get_current_user)):
     return store.resume_insights(user["id"])
 
 
+class VerifyGithubRequest(BaseModel):
+    github_username: str = Field(..., min_length=1, max_length=39)
+
+
+@router.post("/ai/verify-github")
+def verify_github(payload: VerifyGithubRequest, user: dict = Depends(get_current_user)):
+    try:
+        return store.start_github_verification(user["id"], payload.github_username)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/ai/verification")
+def verification(user: dict = Depends(get_current_user)):
+    return store.verification_status(user["id"])
+
+
 # --------------------------------------------------------------------------- #
 # Jobs
 # --------------------------------------------------------------------------- #
@@ -438,6 +456,39 @@ def release_payment(payment_id: str, user: dict = Depends(get_current_user)):
 
 
 # --------------------------------------------------------------------------- #
+# Dispute resolution (peer-led jury)
+# --------------------------------------------------------------------------- #
+class RaiseDisputeRequest(BaseModel):
+    engagement_id: str
+    reason: str = Field(..., min_length=3, max_length=2000)
+
+
+class VoteRequest(BaseModel):
+    verdict: str = Field(..., pattern="^(release|refund|split)$")
+
+
+@router.post("/disputes")
+def raise_dispute(payload: RaiseDisputeRequest, user: dict = Depends(get_current_user)):
+    try:
+        return store.raise_dispute(user["id"], payload.engagement_id, payload.reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/disputes")
+def my_disputes(user: dict = Depends(get_current_user)):
+    return store.disputes_for_user(user["id"])
+
+
+@router.post("/disputes/{dispute_id}/vote")
+def vote_dispute(dispute_id: str, payload: VoteRequest, user: dict = Depends(get_current_user)):
+    try:
+        return store.cast_vote(dispute_id, user["id"], payload.verdict)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# --------------------------------------------------------------------------- #
 # AI + dashboard
 # --------------------------------------------------------------------------- #
 @router.post("/ai/summarize")
@@ -453,6 +504,11 @@ def recommend_jobs(user: dict = Depends(get_current_user)):
 @router.get("/stats")
 def stats():
     return store.platform_stats()
+
+
+@router.get("/analytics")
+def analytics():
+    return store.platform_analytics()
 
 
 @router.get("/dashboard")
@@ -525,7 +581,7 @@ def fund_escrow(engagement_id: str, payload: FundEscrowRequest, user: dict = Dep
     if user["role"] != "client":
         raise HTTPException(status_code=403, detail="Only clients can fund escrow")
     try:
-        return store.fund_escrow(engagement_id, payload.hours)
+        return store.fund_escrow(engagement_id, payload.hours, payload.repo or "")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -565,3 +621,42 @@ async def payment_webhook(request: Request, x_signature: str = Header(default=""
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
+
+@router.post("/webhooks/github")
+async def github_webhook(
+    request: Request,
+    x_hub_signature_256: str = Header(default=""),
+    x_github_event: str = Header(default=""),
+    x_github_delivery: str = Header(default=""),
+):
+    """GitHub merge-event webhook: auto-releases escrow on a verified merge.
+
+    Verifies the standard GitHub HMAC-SHA256 signature (``X-Hub-Signature-256``)
+    of the raw body using ``GITHUB_WEBHOOK_SECRET``. Releases escrow for
+    engagements linked (via the repo field) to the repository when a pull
+    request is merged into its base branch or a push lands on main/master.
+    """
+    raw = await request.body()
+    secret = settings.GITHUB_WEBHOOK_SECRET
+    if secret and secret != "change-me":
+        expected = "sha256=" + hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, x_hub_signature_256):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    try:
+        body = json.loads(raw or b"{}")
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    repo = (body.get("repository") or {}).get("full_name", "")
+    merged = False
+    branch = ""
+    if x_github_event == "pull_request":
+        pr = body.get("pull_request") or {}
+        merged = body.get("action") == "closed" and bool(pr.get("merged"))
+        branch = (pr.get("base") or {}).get("ref", "")
+    elif x_github_event == "push":
+        branch = (body.get("ref") or "").split("/")[-1]
+        merged = branch in ("main", "master")
+    if not merged:
+        return {"status": "ignored", "event": x_github_event, "reason": "not a merge"}
+    return store.process_github_merge(repo, x_github_delivery, branch)

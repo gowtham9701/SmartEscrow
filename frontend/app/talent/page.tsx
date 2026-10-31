@@ -81,8 +81,13 @@ export default function TalentPage() {
                       {t.full_name}
                     </div>
                     <div className="truncate font-mono text-xs text-ink/50">{t.title}</div>
-                    <div className="mt-1 flex items-center gap-2">
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
                       {typeof t.rating === 'number' && <Stars rating={t.rating} />}
+                      {typeof t.talent_grade === 'number' && t.talent_grade > 0 && (
+                        <span className="chip border-emerald-400/50 px-2 py-0.5 text-emerald-700 dark:text-emerald-300">
+                          ✓ Verified {Math.round(t.talent_grade)}
+                        </span>
+                      )}
                       <span className="font-mono text-[11px] text-ink/40">· {t.location}</span>
                     </div>
                   </div>

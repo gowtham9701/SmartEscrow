@@ -1,6 +1,8 @@
 import type {
+  Analytics,
   Application,
   AuditEvent,
+  Dispute,
   Engagement,
   Job,
   JobAI,
@@ -8,6 +10,7 @@ import type {
   PlatformStats,
   ResumeAnalysis,
   User,
+  Verification,
   Wallet,
   WalletSummary,
 } from './types';
@@ -135,6 +138,14 @@ export const api = {
   },
   resumeInsights: () => request<ResumeAnalysis>('/ai/resume-insights'),
 
+  // AI GitHub skill verification
+  verifyGithub: (github_username: string) =>
+    request<{ status: string; username: string }>('/ai/verify-github', {
+      method: 'POST',
+      body: JSON.stringify({ github_username }),
+    }),
+  verification: () => request<Verification>('/ai/verification'),
+
   // jobs
   listJobs: (params: { search?: string; category?: string; skill?: string } = {}) => {
     const qs = new URLSearchParams(
@@ -183,6 +194,14 @@ export const api = {
     request<JobAI>('/ai/summarize', { method: 'POST', body: JSON.stringify({ title, text }) }),
   recommendJobs: () => request<{ jobs: Job[] }>('/ai/recommend-jobs'),
   stats: () => request<PlatformStats>('/stats'),
+  analytics: () => request<Analytics>('/analytics'),
+
+  // disputes
+  raiseDispute: (engagement_id: string, reason: string) =>
+    request<Dispute>('/disputes', { method: 'POST', body: JSON.stringify({ engagement_id, reason }) }),
+  myDisputes: () => request<{ my_disputes: Dispute[]; jury_duty: Dispute[] }>('/disputes'),
+  voteDispute: (id: string, verdict: 'release' | 'refund' | 'split') =>
+    request<Dispute>(`/disputes/${id}/vote`, { method: 'POST', body: JSON.stringify({ verdict }) }),
 
   // wallet + gateway
   wallet: () => request<WalletSummary>('/wallet'),
@@ -204,10 +223,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ amount }),
     }),
-  fundEscrow: (engagementId: string, hours: number) =>
+  fundEscrow: (engagementId: string, hours: number, repo?: string) =>
     request<Engagement>(`/engagements/${engagementId}/fund-escrow`, {
       method: 'POST',
-      body: JSON.stringify({ hours }),
+      body: JSON.stringify({ hours, repo }),
     }),
   audit: () => request<{ events: AuditEvent[] }>('/audit'),
   dashboard: () =>

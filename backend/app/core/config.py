@@ -45,6 +45,9 @@ class Settings(BaseSettings):
 
     # Fiat-Staking Integrity Model
     INTEGRITY_STAKE_INR_PAISA: int = 2500  # ₹25.00 refundable stake (2,500 paise)
+    # Refundable USD stakes (simulated wallet) that filter spam / bad-faith actors.
+    STAKE_JOB_POST_USD: float = 25.0       # employer stake to post a job
+    STAKE_APPLICATION_USD: float = 10.0    # contributor stake to apply to a job
 
     # Email / OTP delivery (zero-cost: use any free SMTP such as Gmail App Password
     # or Brevo/Resend free tier). When SMTP is not configured the app falls back to

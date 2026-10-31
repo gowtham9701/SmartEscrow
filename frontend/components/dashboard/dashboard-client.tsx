@@ -8,6 +8,8 @@ import { Avatar, StatusPill, MatchBadge, SkillChips, EmptyState } from '@/compon
 import { ProfileEditor } from './profile-editor';
 import { WalletPanel } from './wallet-panel';
 import { ResumeManager, ResumeInsights } from './resume-manager';
+import { VerificationPanel } from './verification-panel';
+import { DisputesPanel } from './disputes-panel';
 import { FirmRegisterModal } from '@/components/firm-register-modal';
 import { api, formatUSD, timeAgo } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -69,8 +71,8 @@ export function DashboardClient() {
   };
 
   const tabs = isClient
-    ? ['overview', 'jobs', 'applicants', 'engagements', 'wallet', 'payments', 'profile']
-    : ['overview', 'applications', 'resume', 'engagements', 'wallet', 'payments', 'profile'];
+    ? ['overview', 'jobs', 'applicants', 'engagements', 'wallet', 'payments', 'disputes', 'profile']
+    : ['overview', 'applications', 'resume', 'verify', 'engagements', 'wallet', 'payments', 'disputes', 'profile'];
 
   return (
     <div className="min-h-screen bg-bone">
@@ -145,6 +147,8 @@ export function DashboardClient() {
             )}
             {tab === 'wallet' && <WalletPanel />}
             {tab === 'resume' && <ResumeManager />}
+            {tab === 'verify' && <VerificationPanel />}
+            {tab === 'disputes' && <DisputesPanel engagements={data.engagements} />}
             {tab === 'payments' && (
               <PaymentsPanel
                 payments={data.payments}

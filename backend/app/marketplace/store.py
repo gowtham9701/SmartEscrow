@@ -106,6 +106,19 @@ _USER_DEFAULTS = {
 }
 
 
+def _reputation_score(u: dict) -> int:
+    """Composite 0-100 reputation from verification, quality, volume and conduct."""
+    grade = float(u.get("talent_grade") or 0)                  # 0-100 (verification)
+    rating = float(u.get("rating") or 0)                       # 0-5 (quality)
+    completed = int(u.get("completed_jobs") or 0)              # volume
+    disputes_lost = int(u.get("disputes_lost") or 0)           # conduct penalty
+    score = (0.45 * grade
+             + 0.30 * (rating / 5 * 100)
+             + 0.25 * min(100, completed * 8)
+             - disputes_lost * 10)
+    return int(max(0, min(100, round(score))))
+
+
 def _row_to_user(rec, public: bool = True) -> dict | None:
     if rec is None:
         return None
@@ -115,6 +128,7 @@ def _row_to_user(rec, public: bool = True) -> dict | None:
     for f in _JSON_USER_FIELDS:
         value = u.get(f)
         u[f] = value if isinstance(value, list) else ([] if f != "languages" else ["English"])
+    u["reputation"] = _reputation_score(u)
     if public:
         u.pop("password_hash", None)
     return u
@@ -484,6 +498,63 @@ def resume_insights(user_id: str) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# AI technical skill verification (GitHub-based, objective)
+# --------------------------------------------------------------------------- #
+def _run_github_verification(user_id: str, username: str) -> None:
+    """Background worker: verify a GitHub profile and persist the result."""
+    from app.marketplace import verification as _verif
+    try:
+        result = _verif.verify_github(username)
+    except Exception as exc:  # never let the thread crash silently
+        logger.exception("GitHub verification failed for %s", username)
+        result = {"ok": False, "error": "Verification failed unexpectedly."}
+    user = _get_user_raw(user_id)
+    if not user:
+        return
+    if result.get("ok"):
+        result["status"] = "done"
+        # Merge verified skills into the profile's skill set.
+        merged = list(dict.fromkeys([*(user.get("skills") or []), *result.get("verified_skills", [])]))
+        db.user_update(user_id, {
+            "verification": result,
+            "talent_grade": result["talent_grade"],
+            "github_username": username,
+            "skills": merged,
+        })
+        audit(user_id, "verification.completed", "user", user_id,
+              {"username": username, "grade": result["talent_grade"], "tier": result["tier"]})
+    else:
+        db.user_update(user_id, {
+            "verification": {"status": "failed", "username": username, "error": result.get("error")},
+        })
+
+
+def start_github_verification(user_id: str, username: str) -> dict:
+    """Kick off GitHub verification in the background; returns immediately."""
+    user = _get_user_raw(user_id)
+    if not user:
+        raise ValueError("User not found.")
+    username = (username or "").strip().lstrip("@")
+    if not username:
+        raise ValueError("Please provide your GitHub username.")
+    db.user_update(user_id, {
+        "verification": {"status": "verifying", "username": username},
+        "github_username": username,
+    })
+    threading.Thread(target=_run_github_verification, args=(user_id, username), daemon=True).start()
+    audit(user_id, "verification.started", "user", user_id, {"username": username})
+    return {"status": "verifying", "username": username}
+
+
+def verification_status(user_id: str) -> dict:
+    """Return the current verification result/state for a user."""
+    user = _get_user_raw(user_id)
+    if not user:
+        raise ValueError("User not found.")
+    return user.get("verification") or {"status": "none"}
+
+
+# --------------------------------------------------------------------------- #
 # Jobs
 # --------------------------------------------------------------------------- #
 def list_jobs(search: str = "", category: str = "", skill: str = "") -> list[dict]:
@@ -540,8 +611,11 @@ def create_job(client_id: str, payload: dict) -> dict:
         "ai": ai.analyze_job(title, desc, skills),
         "created_at": _now(),
     }, actor=client_id)
+    # Integrity stake: a refundable USD stake filters spam job postings.
+    stake = hold_stake(client_id, "job_post", jid, settings.STAKE_JOB_POST_USD)
+    db.op_update(jid, {"staked": bool(stake)})
     db.user_update(client_id, {"jobs_posted": int(client.get("jobs_posted") or 0) + 1})
-    audit(client_id, "job.create", "job", jid, {"title": title})
+    audit(client_id, "job.create", "job", jid, {"title": title, "staked": bool(stake)})
     return get_job(jid)
 
 
@@ -550,7 +624,8 @@ def create_job(client_id: str, payload: dict) -> dict:
 # --------------------------------------------------------------------------- #
 def list_talent(search: str = "", skill: str = "") -> list[dict]:
     talent = [_row_to_user(u) for u in db.user_all() if int(u.get("is_freelancer") or 0) == 1]
-    talent.sort(key=lambda u: u.get("rating") or 0, reverse=True)
+    # Rank verified talent higher: primary by talent grade, then by rating.
+    talent.sort(key=lambda u: ((u.get("talent_grade") or 0), (u.get("rating") or 0)), reverse=True)
     if search:
         s = search.lower()
         talent = [u for u in talent if s in u["full_name"].lower()
@@ -571,6 +646,8 @@ def apply_to_job(job_id: str, contributor_id: str, rate: int, cover_letter: str)
     if db.op_one("application", job_id=job_id, contributor_id=contributor_id):
         raise ValueError("You have already applied to this job.")
     aid = _id("app")
+    # Integrity stake: a refundable USD stake filters spam / ghosting applicants.
+    stake = hold_stake(contributor_id, "application", aid, settings.STAKE_APPLICATION_USD)
     db.op_insert("application", {
         "id": aid,
         "job_id": job_id,
@@ -578,9 +655,11 @@ def apply_to_job(job_id: str, contributor_id: str, rate: int, cover_letter: str)
         "proposed_hourly_rate": rate,
         "status": "submitted",
         "cover_letter": cover_letter,
+        "staked": bool(stake),
         "created_at": _now(),
     }, actor=contributor_id, job=job_id)
-    audit(contributor_id, "application.submit", "application", aid, {"job_id": job_id, "rate": rate})
+    audit(contributor_id, "application.submit", "application", aid,
+          {"job_id": job_id, "rate": rate, "staked": bool(stake)})
     return _enrich_application(db.op_get(aid))
 
 
@@ -606,10 +685,15 @@ def update_application_status(application_id: str, status: str) -> dict:
         raise ValueError("Application not found.")
     db.op_update(application_id, {"status": status})
     audit(None, "application.status", "application", application_id, {"status": status})
+    # Good-faith resolution of an application refunds the applicant's integrity stake.
+    if status in ("hired", "rejected", "declined", "withdrawn"):
+        _settle_stakes_for("application", application_id, "refund")
     if status == "hired":
         job = get_job(row["job_id"])
         existing = db.op_one("engagement", job_id=row["job_id"], contributor_id=row["contributor_id"])
         if job and not existing:
+            # Employer acted in good faith (made a hire) -> refund their job-post stake.
+            _settle_stakes_for("job_post", row["job_id"], "refund")
             eid = _id("eng")
             db.op_insert("engagement", {
                 "id": eid,
@@ -673,6 +757,7 @@ def log_hours(engagement_id: str, hours: int, note: str) -> dict:
 def ensure_wallet(user_id: str) -> dict:
     wallet = db.op_one("wallet", user_id=user_id)
     if wallet:
+        wallet.setdefault("staked_balance", 0)
         return wallet
     wid = _id("wal")
     return db.op_insert("wallet", {
@@ -680,6 +765,7 @@ def ensure_wallet(user_id: str) -> dict:
         "user_id": user_id,
         "available_balance": 0,
         "blocked_balance": 0,
+        "staked_balance": 0,
         "currency": "USD",
         "created_at": _now(),
     }, actor=user_id)
@@ -728,11 +814,17 @@ def withdraw_from_wallet(user_id: str, amount: float) -> dict:
     return get_wallet(user_id)
 
 
-def fund_escrow(engagement_id: str, hours: int) -> dict:
-    """Client blocks funds from available balance into escrow for an engagement."""
+def fund_escrow(engagement_id: str, hours: int, repo: str = "") -> dict:
+    """Client blocks funds from available balance into escrow for an engagement.
+
+    Optionally links a GitHub repository so a verified merge event can auto-release.
+    """
     eng = db.op_get(engagement_id)
     if not eng:
         raise ValueError("Engagement not found.")
+    if repo:
+        db.op_update(engagement_id, {"repo": repo.strip()})
+        eng = db.op_get(engagement_id)
     amount = hours * int(eng.get("hourly_rate") or 0)
     wallet = ensure_wallet(eng["client_id"])
     if amount > wallet["available_balance"]:
@@ -809,13 +901,110 @@ def wallet_transactions(user_id: str, limit: int = 25) -> list[dict]:
     return db.op_find("wallet_txn", user_id=user_id)[:limit]
 
 
+def _refund_escrow(pay: dict) -> None:
+    """Return a disputed in-escrow payment's blocked funds to the client."""
+    amount = pay["amount_usd"]
+    client_wallet = ensure_wallet(pay["client_id"])
+    new_blocked = max(0, client_wallet["blocked_balance"] - amount)
+    new_available = client_wallet["available_balance"] + amount
+    db.op_update(client_wallet["id"], {"blocked_balance": new_blocked, "available_balance": new_available})
+    client_wallet["blocked_balance"] = new_blocked
+    client_wallet["available_balance"] = new_available
+    _wallet_tx(client_wallet, pay["client_id"], "escrow_refund", amount, pay["id"], "Escrow refunded (dispute)")
+    db.op_update(pay["id"], {"status": "refunded", "type": "refunded"})
+    if pay.get("gateway_ref"):
+        db.op_update(pay["gateway_ref"], {"status": "refunded", "released_at": _now()})
+
+
+def _split_escrow(pay: dict) -> None:
+    """Split a disputed in-escrow payment 50/50 between client and contributor."""
+    amount = pay["amount_usd"]
+    half = round(amount / 2, 2)
+    client_wallet = ensure_wallet(pay["client_id"])
+    new_blocked = max(0, client_wallet["blocked_balance"] - amount)
+    new_available = client_wallet["available_balance"] + half
+    db.op_update(client_wallet["id"], {"blocked_balance": new_blocked, "available_balance": new_available})
+    client_wallet["blocked_balance"] = new_blocked
+    client_wallet["available_balance"] = new_available
+    _wallet_tx(client_wallet, pay["client_id"], "escrow_split", half, pay["id"], "Escrow split refund (dispute)")
+
+    contrib_wallet = ensure_wallet(pay["contributor_id"])
+    c_avail = contrib_wallet["available_balance"] + (amount - half)
+    db.op_update(contrib_wallet["id"], {"available_balance": c_avail})
+    contrib_wallet["available_balance"] = c_avail
+    _wallet_tx(contrib_wallet, pay["contributor_id"], "earning", amount - half, pay["id"], "Escrow split payout (dispute)")
+    db.op_update(pay["id"], {"status": "split", "type": "split"})
+    if pay.get("gateway_ref"):
+        db.op_update(pay["gateway_ref"], {"status": "released", "released_at": _now()})
+
+
 def wallet_summary(user_id: str) -> dict:
     wallet = ensure_wallet(user_id)
     return {
         "wallet": wallet,
         "transactions": wallet_transactions(user_id),
         "payment_methods": list_cards(user_id),
+        "stakes": [s for s in db.op_find("stake", user_id=user_id, status="held")],
     }
+
+
+# --------------------------------------------------------------------------- #
+# Fiat-staking integrity model (refundable USD stakes; simulated wallet)
+# --------------------------------------------------------------------------- #
+def hold_stake(user_id: str, purpose: str, ref_id: str, amount: float) -> dict | None:
+    """Hold a refundable stake from available -> staked balance.
+
+    Applied opportunistically: if the user lacks sufficient available balance the
+    action is still allowed but left unstaked (returns None), which keeps the
+    platform usable while rewarding funded, good-faith participants.
+    """
+    if amount <= 0:
+        return None
+    wallet = ensure_wallet(user_id)
+    if wallet["available_balance"] < amount:
+        return None
+    new_available = wallet["available_balance"] - amount
+    new_staked = (wallet.get("staked_balance") or 0) + amount
+    db.op_update(wallet["id"], {"available_balance": new_available, "staked_balance": new_staked})
+    wallet["available_balance"] = new_available
+    wallet["staked_balance"] = new_staked
+    sid = _id("stk")
+    db.op_insert("stake", {
+        "id": sid, "user_id": user_id, "purpose": purpose, "ref_id": ref_id,
+        "amount": amount, "status": "held", "created_at": _now(),
+    }, actor=user_id, amount_cents=round(amount * 100))
+    _wallet_tx(wallet, user_id, "stake_hold", -amount, ref_id, f"Integrity stake held ({purpose})")
+    audit(user_id, "stake.held", "stake", sid, {"purpose": purpose, "amount": amount, "ref": ref_id})
+    return db.op_get(sid)
+
+
+def _settle_stake(stake: dict, outcome: str) -> None:
+    """Release a held stake back to the user (refund) or forfeit it (bad faith)."""
+    if not stake or stake.get("status") != "held":
+        return
+    wallet = ensure_wallet(stake["user_id"])
+    amount = stake["amount"]
+    new_staked = max(0, (wallet.get("staked_balance") or 0) - amount)
+    changes = {"staked_balance": new_staked}
+    if outcome == "refund":
+        changes["available_balance"] = wallet["available_balance"] + amount
+    db.op_update(wallet["id"], changes)
+    wallet["staked_balance"] = new_staked
+    if outcome == "refund":
+        wallet["available_balance"] = changes["available_balance"]
+        _wallet_tx(wallet, stake["user_id"], "stake_refund", amount, stake["ref_id"], "Integrity stake refunded")
+    else:
+        _wallet_tx(wallet, stake["user_id"], "stake_forfeit", 0, stake["ref_id"], "Integrity stake forfeited (bad faith)")
+    db.op_update(stake["id"], {"status": "refunded" if outcome == "refund" else "forfeited"})
+    audit(stake["user_id"], f"stake.{'refunded' if outcome=='refund' else 'forfeited'}", "stake", stake["id"],
+          {"amount": amount})
+
+
+def _settle_stakes_for(purpose: str, ref_id: str, outcome: str, user_id: str | None = None) -> None:
+    for s in db.op_find("stake", purpose=purpose, ref_id=ref_id, status="held"):
+        if user_id and s["user_id"] != user_id:
+            continue
+        _settle_stake(s, outcome)
 
 
 # --------------------------------------------------------------------------- #
@@ -939,8 +1128,173 @@ def payments_for_user(user_id: str, role: str) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- #
-# Simulated payment-gateway webhook (idempotent)
+# Peer-led dispute resolution (blind, randomized senior-engineer jury)
 # --------------------------------------------------------------------------- #
+_JURY_SIZE = 3
+_VALID_VERDICTS = ("release", "refund", "split")
+
+
+def _select_jurors(exclude_ids: set[str], count: int = _JURY_SIZE) -> list[str]:
+    """Pick the most credible available contributors as blind jurors."""
+    candidates = [
+        u for u in db.user_all()
+        if int(u.get("is_freelancer") or 0) == 1 and u["id"] not in exclude_ids
+    ]
+    # Prefer verified, high-grade, well-rated, experienced engineers.
+    candidates.sort(
+        key=lambda u: ((u.get("talent_grade") or 0), (u.get("rating") or 0),
+                       (u.get("completed_jobs") or 0)),
+        reverse=True,
+    )
+    pool = candidates[: max(count * 3, count)] or candidates
+    secrets_rand = secrets.SystemRandom()
+    return [u["id"] for u in secrets_rand.sample(pool, min(count, len(pool)))]
+
+
+def raise_dispute(user_id: str, engagement_id: str, reason: str) -> dict:
+    """Open a dispute on an engagement that has funds in escrow."""
+    eng = db.op_get(engagement_id)
+    if not eng:
+        raise ValueError("Engagement not found.")
+    if user_id not in (eng["client_id"], eng["contributor_id"]):
+        raise ValueError("Only the client or contributor on this engagement can raise a dispute.")
+    if not (reason or "").strip():
+        raise ValueError("Please describe the reason for the dispute.")
+    # Must have an in-escrow payment to arbitrate.
+    payment = None
+    for p in db.op_find("payment", engagement_id=engagement_id):
+        if p.get("status") == "in_escrow":
+            payment = p
+            break
+    if not payment:
+        raise ValueError("There are no escrowed funds on this engagement to dispute.")
+    if db.op_one("dispute", engagement_id=engagement_id, status="voting"):
+        raise ValueError("A dispute is already in progress for this engagement.")
+
+    against = eng["contributor_id"] if user_id == eng["client_id"] else eng["client_id"]
+    jurors = _select_jurors({eng["client_id"], eng["contributor_id"]})
+    did = _id("dsp")
+    db.op_insert("dispute", {
+        "id": did,
+        "engagement_id": engagement_id,
+        "payment_id": payment["id"],
+        "amount_usd": payment["amount_usd"],
+        "raised_by": user_id,
+        "against": against,
+        "client_id": eng["client_id"],
+        "contributor_id": eng["contributor_id"],
+        "engagement_title": eng.get("title", ""),
+        "reason": reason.strip(),
+        "jurors": jurors,
+        "votes": [],
+        "status": "voting",
+        "verdict": None,
+        "created_at": _now(),
+    }, actor=user_id, counter=against, job=eng.get("job_id"))
+    db.op_update(engagement_id, {"status": "disputed"})
+    db.op_update(payment["id"], {"status": "disputed_hold"})
+    audit(user_id, "dispute.raised", "dispute", did,
+          {"engagement_id": engagement_id, "jurors": len(jurors)})
+    return _enrich_dispute(db.op_get(did), viewer_id=user_id)
+
+
+def _enrich_dispute(d: dict, viewer_id: str | None = None) -> dict:
+    out = dict(d)
+    votes = out.get("votes") or []
+    out["votes_cast"] = len(votes)
+    out["jury_size"] = len(out.get("jurors") or [])
+    is_juror = viewer_id in (out.get("jurors") or [])
+    is_party = viewer_id in (out.get("client_id"), out.get("contributor_id"))
+    out["is_juror"] = is_juror
+    out["is_party"] = is_party
+    out["has_voted"] = any(v.get("juror_id") == viewer_id for v in votes)
+    # Blind jurors never see the identities of the parties.
+    if is_juror and not is_party:
+        out["raised_by"] = "Party A"
+        out["against"] = "Party B"
+        out.pop("client_id", None)
+        out.pop("contributor_id", None)
+        out["jurors"] = ["(you)" if j == viewer_id else "juror" for j in out.get("jurors", [])]
+        out["votes"] = [{"verdict": v["verdict"]} for v in votes]  # hide who voted what
+    else:
+        # parties see juror count but not identities
+        out["jurors"] = ["juror"] * out["jury_size"]
+    return out
+
+
+def disputes_for_user(user_id: str) -> dict:
+    """Return disputes where the user is a party, and cases where they are a juror."""
+    all_disputes = db.op_all("dispute")
+    mine = [_enrich_dispute(d, user_id) for d in all_disputes
+            if user_id in (d.get("client_id"), d.get("contributor_id"))]
+    jury = [_enrich_dispute(d, user_id) for d in all_disputes
+            if user_id in (d.get("jurors") or []) and user_id not in (d.get("client_id"), d.get("contributor_id"))]
+    return {"my_disputes": mine, "jury_duty": jury}
+
+
+def cast_vote(dispute_id: str, juror_id: str, verdict: str) -> dict:
+    d = db.op_get(dispute_id)
+    if not d:
+        raise ValueError("Dispute not found.")
+    if d.get("status") != "voting":
+        raise ValueError("This dispute is already resolved.")
+    if juror_id not in (d.get("jurors") or []):
+        raise ValueError("You are not assigned to this dispute.")
+    if verdict not in _VALID_VERDICTS:
+        raise ValueError("Invalid verdict. Choose release, refund, or split.")
+    votes = d.get("votes") or []
+    if any(v.get("juror_id") == juror_id for v in votes):
+        raise ValueError("You have already voted on this dispute.")
+    votes.append({"juror_id": juror_id, "verdict": verdict, "at": _now()})
+    db.op_update(dispute_id, {"votes": votes})
+    audit(juror_id, "dispute.vote", "dispute", dispute_id, {"verdict": verdict})
+
+    # Resolve once the whole jury has voted (or a strict majority is reached).
+    jury_size = len(d.get("jurors") or [])
+    tally = {v: 0 for v in _VALID_VERDICTS}
+    for v in votes:
+        tally[v["verdict"]] += 1
+    leader, lead_count = max(tally.items(), key=lambda kv: kv[1])
+    if len(votes) >= jury_size or lead_count > jury_size // 2:
+        _resolve_dispute(dispute_id, leader, tally)
+    return _enrich_dispute(db.op_get(dispute_id), viewer_id=juror_id)
+
+
+def _resolve_dispute(dispute_id: str, verdict: str, tally: dict) -> None:
+    d = db.op_get(dispute_id)
+    pay = db.op_get(d["payment_id"]) if d.get("payment_id") else None
+    if pay:
+        # Un-hold so the resolution helpers see the expected state.
+        if pay.get("status") in ("disputed_hold", "in_escrow"):
+            db.op_update(pay["id"], {"status": "in_escrow"})
+            pay = db.op_get(pay["id"])
+        if verdict == "release":
+            release_payment(pay["id"])
+        elif verdict == "refund":
+            _refund_escrow(pay)
+        elif verdict == "split":
+            _split_escrow(pay)
+    db.op_update(dispute_id, {"status": "resolved", "verdict": verdict, "tally": tally,
+                              "resolved_at": _now()})
+    # Forfeit any still-held integrity stake of the at-fault party.
+    at_fault = None
+    if verdict == "refund":
+        at_fault = d.get("contributor_id")   # contributor failed to deliver
+    elif verdict == "release":
+        at_fault = d.get("client_id")        # client wrongly withheld payment
+    if at_fault:
+        for s in db.op_find("stake", status="held"):
+            if s["user_id"] == at_fault:
+                _settle_stake(s, "forfeit")
+        fault_user = _get_user_raw(at_fault)
+        if fault_user:
+            db.user_update(at_fault, {"disputes_lost": int(fault_user.get("disputes_lost") or 0) + 1})
+    if d.get("engagement_id"):
+        db.op_update(d["engagement_id"], {"status": "active"})
+    audit(None, "dispute.resolved", "dispute", dispute_id, {"verdict": verdict, "tally": tally})
+
+
+
 def process_payment_webhook(event: str, data: dict) -> dict:
     """Handle a callback from the simulated USD gateway.
 
@@ -984,9 +1338,35 @@ def process_payment_webhook(event: str, data: dict) -> dict:
 
 
 # --------------------------------------------------------------------------- #
-# Recommendations + stats + activity trail
+# GitHub merge-event webhook -> automatic escrow release on verified delivery
 # --------------------------------------------------------------------------- #
-def recommend_jobs_for(contributor_id: str, limit: int = 4) -> list[dict]:
+def process_github_merge(repo: str, delivery_id: str = "", branch: str = "") -> dict:
+    """Release escrow for engagements linked to a repo when a merge is verified.
+
+    Idempotent on the GitHub delivery id so retried deliveries are safe.
+    """
+    repo = (repo or "").strip()
+    if not repo:
+        return {"status": "ignored", "reason": "no repository"}
+    ref = f"gh:{delivery_id or repo}"
+    if db.op_one("webhook_event", ref=ref):
+        return {"status": "already_processed", "ref": ref}
+
+    released = []
+    for eng in db.op_find("engagement", repo=repo):
+        for pay in db.op_find("payment", engagement_id=eng["id"]):
+            if pay.get("status") == "in_escrow":
+                release_payment(pay["id"])
+                released.append(pay["id"])
+    db.op_insert("webhook_event", {
+        "id": _id("whk"), "ref": ref, "event": "github.merge", "created_at": _now(),
+    })
+    audit(None, "github.merge", "engagement", repo,
+          {"repo": repo, "branch": branch, "released": len(released)})
+    return {"status": "processed", "repo": repo, "payments_released": released}
+
+
+
     user = get_user(contributor_id)
     if not user or user["role"] != "contributor":
         return list_jobs()[:limit]
@@ -1022,6 +1402,30 @@ def platform_stats() -> dict:
         "active_engagements": db.op_count("engagement", status="active"),
         "total_paid_out": sum(p.get("amount_usd") or 0 for p in payments if p.get("status") == "completed"),
         "in_escrow": sum(p.get("amount_usd") or 0 for p in payments if p.get("status") == "in_escrow"),
+    }
+
+
+def platform_analytics() -> dict:
+    """Richer platform analytics covering the full feature set."""
+    users = db.user_all()
+    payments = db.op_all("payment")
+    disputes = db.op_all("dispute")
+    stakes = db.op_all("stake")
+    verified = [u for u in users if u.get("talent_grade")]
+    grades = [float(u["talent_grade"]) for u in verified]
+    return {
+        **platform_stats(),
+        "total_users": len(users),
+        "verified_contributors": len(verified),
+        "avg_talent_grade": round(sum(grades) / len(grades), 1) if grades else 0,
+        "disputes_total": len(disputes),
+        "disputes_resolved": len([d for d in disputes if d.get("status") == "resolved"]),
+        "disputes_open": len([d for d in disputes if d.get("status") == "voting"]),
+        "total_staked_held": round(sum(s.get("amount") or 0 for s in stakes if s.get("status") == "held"), 2),
+        "stakes_forfeited": len([s for s in stakes if s.get("status") == "forfeited"]),
+        "refunded_escrow": sum(p.get("amount_usd") or 0 for p in payments if p.get("status") == "refunded"),
+        "jobs_total": db.op_count("job"),
+        "applications_total": db.op_count("application"),
     }
 
 

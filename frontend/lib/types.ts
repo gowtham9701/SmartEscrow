@@ -60,6 +60,66 @@ export interface User {
   jobs_posted?: number;
   // ranking (populated by recommendation endpoints)
   match_score?: number;
+  // verification + reputation
+  talent_grade?: number;
+  reputation?: number;
+  verification?: Verification;
+}
+
+export interface Verification {
+  status: 'none' | 'verifying' | 'done' | 'failed';
+  username?: string;
+  error?: string;
+  talent_grade?: number;
+  tier?: string;
+  breakdown?: Record<string, number>;
+  verified_skills?: string[];
+  top_languages?: string[];
+  total_stars?: number;
+  peak_stars?: number;
+  original_repos?: number;
+  total_repos?: number;
+  repos_active_last_year?: number;
+  has_tests_or_ci?: boolean;
+  code_quality_measured?: boolean;
+  public_repos?: number;
+  followers?: number;
+  profile_url?: string;
+  verified_at?: string;
+}
+
+export interface Dispute {
+  id: string;
+  engagement_id: string;
+  engagement_title?: string;
+  amount_usd?: number;
+  reason: string;
+  status: 'voting' | 'resolved';
+  verdict?: 'release' | 'refund' | 'split' | null;
+  tally?: Record<string, number>;
+  jury_size: number;
+  votes_cast: number;
+  is_juror: boolean;
+  is_party: boolean;
+  has_voted: boolean;
+  raised_by?: string;
+  against?: string;
+  created_at: string;
+  resolved_at?: string;
+}
+
+export interface Analytics extends PlatformStats {
+  total_users: number;
+  verified_contributors: number;
+  avg_talent_grade: number;
+  disputes_total: number;
+  disputes_resolved: number;
+  disputes_open: number;
+  total_staked_held: number;
+  stakes_forfeited: number;
+  refunded_escrow: number;
+  jobs_total: number;
+  applications_total: number;
 }
 
 export interface JobAI {
@@ -121,6 +181,7 @@ export interface Engagement {
   contributor?: User;
   total_billed?: number;
   escrow_held?: number;
+  repo?: string;
 }
 
 export interface Payment {
@@ -153,6 +214,7 @@ export interface Wallet {
   user_id: string;
   available_balance: number;
   blocked_balance: number;
+  staked_balance?: number;
   currency: string;
   created_at: string;
 }
@@ -178,10 +240,20 @@ export interface PaymentMethod {
   is_default: number;
 }
 
+export interface Stake {
+  id: string;
+  purpose: string;
+  ref_id: string;
+  amount: number;
+  status: string;
+  created_at: string;
+}
+
 export interface WalletSummary {
   wallet: Wallet;
   transactions: WalletTransaction[];
   payment_methods: PaymentMethod[];
+  stakes?: Stake[];
 }
 
 export interface ResumeMatch {
